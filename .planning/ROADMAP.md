@@ -16,7 +16,7 @@ None
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation & Core Loop** - Basic game structure, grid-based movement, and turn system
+- [x] **Phase 1: Foundation & Core Loop** - Basic game structure, grid-based movement, and turn system
 - [ ] **Phase 2: Combat & Enemies** - Tactical combat mechanics and enemy variety
 - [ ] **Phase 3: Procedural Generation** - Dungeon generation with varied layouts
 - [ ] **Phase 4: Meta-Progression Systems** - Character unlocks, persistent upgrades, and item pool expansion
@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 Plans:
 - [x] 01-01: Project Setup & Basic Rendering (completed 2026-01-09)
 - [x] 01-02: Grid System & Map Rendering (completed 2026-01-09)
-- [ ] 01-03: Player Movement & Turn System
+- [x] 01-03: Player Movement & Turn System (completed 2026-01-09)
 
 ### Phase 2: Combat & Enemies
 **Goal**: Implement tactical combat mechanics with basic enemy AI and variety
@@ -89,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Core Loop | 2/3 | In progress | - |
+| 1. Foundation & Core Loop | 3/3 | Complete ✅ | 2026-01-09 |
 | 2. Combat & Enemies | 0/3 | Not started | - |
 | 3. Procedural Generation | 0/3 | Not started | - |
 | 4. Meta-Progression Systems | 0/3 | Not started | - |
