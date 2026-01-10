@@ -31,3 +31,9 @@ export enum AIBehavior {
   RANGED,      // Maintain distance, attack from range
   DEFENSIVE    // Only attack when adjacent
 }
+
+// Turn-based game state
+export enum TurnState {
+  PLAYER_TURN,
+  ENEMY_TURN
+}
