@@ -1,11 +1,15 @@
 import Phaser from 'phaser';
 import * as ROT from 'rot-js';
 import { GridManager } from '../systems/GridManager';
+import { Player } from '../entities/Player';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
   private gridManager!: GridManager;
   private graphics!: Phaser.GameObjects.Graphics;
+  private player: Player | null = null;
+  private cursors: Phaser.Types.Input.Keyboard.CursorKeys | undefined;
+  private wasdKeys: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key } | undefined;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -33,6 +37,34 @@ export class GameScene extends Phaser.Scene {
 
     // Render the dungeon
     this.renderMap();
+
+    // Find starting position (first floor tile)
+    let startX = 0;
+    let startY = 0;
+    outerLoop: for (let y = 0; y < this.map.length; y++) {
+      for (let x = 0; x < this.map[y].length; x++) {
+        if (this.map[y][x] === 0) {
+          startX = x;
+          startY = y;
+          break outerLoop;
+        }
+      }
+    }
+
+    // Create player
+    this.player = new Player(this, startX, startY);
+    this.player.updateSpritePosition(this.gridManager);
+
+    // Setup keyboard input
+    this.cursors = this.input.keyboard?.createCursorKeys();
+    if (this.input.keyboard) {
+      this.wasdKeys = this.input.keyboard.addKeys({
+        W: Phaser.Input.Keyboard.KeyCodes.W,
+        A: Phaser.Input.Keyboard.KeyCodes.A,
+        S: Phaser.Input.Keyboard.KeyCodes.S,
+        D: Phaser.Input.Keyboard.KeyCodes.D
+      }) as { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
+    }
   }
 
   private renderMap(): void {
@@ -63,6 +95,29 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(): void {
-    // Empty for now
+    if (!this.player || !this.cursors) return;
+
+    // Check for arrow key or WASD input using JustDown to prevent repeat firing
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+        (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.W))) {
+      if (this.player.move(0, -1, this.map)) {
+        this.player.updateSpritePosition(this.gridManager);
+      }
+    } else if (Phaser.Input.Keyboard.JustDown(this.cursors.down) ||
+               (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.S))) {
+      if (this.player.move(0, 1, this.map)) {
+        this.player.updateSpritePosition(this.gridManager);
+      }
+    } else if (Phaser.Input.Keyboard.JustDown(this.cursors.left) ||
+               (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.A))) {
+      if (this.player.move(-1, 0, this.map)) {
+        this.player.updateSpritePosition(this.gridManager);
+      }
+    } else if (Phaser.Input.Keyboard.JustDown(this.cursors.right) ||
+               (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.D))) {
+      if (this.player.move(1, 0, this.map)) {
+        this.player.updateSpritePosition(this.gridManager);
+      }
+    }
   }
 }
