@@ -32,9 +32,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 2-3 plans
 
 Plans:
-- [ ] 01-01: TBD (determined during phase planning)
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [x] 01-01: Project Setup & Basic Rendering (completed 2026-01-09)
+- [ ] 01-02: Grid System & Map Rendering
+- [ ] 01-03: Player Movement & Turn System
 
 ### Phase 2: Combat & Enemies
 **Goal**: Implement tactical combat mechanics with basic enemy AI and variety
@@ -89,7 +89,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Core Loop | 0/3 | Not started | - |
+| 1. Foundation & Core Loop | 1/3 | In progress | - |
 | 2. Combat & Enemies | 0/3 | Not started | - |
 | 3. Procedural Generation | 0/3 | Not started | - |
 | 4. Meta-Progression Systems | 0/3 | Not started | - |
