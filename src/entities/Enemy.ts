@@ -66,9 +66,10 @@ export class Enemy implements CombatEntity {
   }
 
   /**
-   * AI decision-making (to be implemented in Task 2)
+   * AI decision-making using AISystem
    */
   selectAction(player: Player, map: number[][]): void {
-    // Placeholder - will be implemented with AISystem in Task 2
+    const AISystem = require('../systems/AISystem').AISystem;
+    AISystem.selectAction(this, player, map);
   }
 }
