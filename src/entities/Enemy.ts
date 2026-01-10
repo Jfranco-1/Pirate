@@ -3,6 +3,7 @@ import { CombatEntity, CombatStats, AIBehavior } from '../types';
 import { GridManager } from '../systems/GridManager';
 import { CombatSystem } from '../systems/CombatSystem';
 import { Player } from './Player';
+import { AISystem } from '../systems/AISystem';
 
 /**
  * Base Enemy class with combat and AI capabilities
@@ -32,10 +33,9 @@ export class Enemy implements CombatEntity {
     this.stats = stats;
     this.behavior = behavior;
 
-    // Create sprite with color tint (no texture yet)
-    this.sprite = scene.add.sprite(0, 0, '');
+    // Create sprite with entity texture and color tint
+    this.sprite = scene.add.sprite(0, 0, 'entity');
     this.sprite.setTint(color);
-    this.sprite.setDisplaySize(28, 28); // Match player size
   }
 
   isAlive(): boolean {
@@ -68,8 +68,9 @@ export class Enemy implements CombatEntity {
   /**
    * AI decision-making using AISystem
    */
-  selectAction(player: Player, map: number[][]): void {
-    const AISystem = require('../systems/AISystem').AISystem;
+  selectAction(player: Player, map: number[][], gridManager: GridManager): void {
     AISystem.selectAction(this, player, map);
+    // Update sprite position after AI moves
+    this.updateSpritePosition(gridManager);
   }
 }

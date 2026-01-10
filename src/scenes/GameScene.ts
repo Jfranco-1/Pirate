@@ -28,6 +28,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Create a simple white square texture that can be tinted
+    const textureGraphics = this.add.graphics();
+    textureGraphics.fillStyle(0xffffff);
+    textureGraphics.fillRect(0, 0, 28, 28);
+    textureGraphics.generateTexture('entity', 28, 28);
+    textureGraphics.destroy();
+
     // Initialize grid manager (25x18 tiles for 800x600 canvas)
     this.gridManager = new GridManager(25, 18);
 
@@ -178,7 +185,7 @@ export class GameScene extends Phaser.Scene {
 
     // If player successfully moved, end player turn
     if (playerMoved) {
-      this.turnManager.endPlayerTurn(this.player, this.map);
+      this.turnManager.endPlayerTurn(this.player, this.map, this.gridManager);
 
       // Remove dead enemies after enemy turn
       for (let i = this.enemies.length - 1; i >= 0; i--) {

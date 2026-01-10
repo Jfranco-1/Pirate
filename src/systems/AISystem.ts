@@ -1,4 +1,4 @@
-import ROT from 'rot-js';
+import * as ROT from 'rot-js';
 import { Enemy } from '../entities/Enemy';
 import { Player } from '../entities/Player';
 import { AIBehavior } from '../types';

@@ -1,6 +1,7 @@
 import { TurnState } from '../types';
 import { Enemy } from '../entities/Enemy';
 import { Player } from '../entities/Player';
+import { GridManager } from './GridManager';
 
 /**
  * TurnManager - Simple FSM for turn-based combat flow
@@ -28,7 +29,7 @@ export class TurnManager {
     return this.state === TurnState.PLAYER_TURN;
   }
 
-  endPlayerTurn(player: Player, map: number[][]): void {
+  endPlayerTurn(player: Player, map: number[][], gridManager: GridManager): void {
     // Switch to enemy turn
     this.state = TurnState.ENEMY_TURN;
 
@@ -36,7 +37,7 @@ export class TurnManager {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const enemy = this.enemies[i];
       if (enemy.isAlive()) {
-        enemy.selectAction(player, map);
+        enemy.selectAction(player, map, gridManager);
       } else {
         // Remove dead enemies from tracking
         this.enemies.splice(i, 1);

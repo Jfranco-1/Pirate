@@ -23,10 +23,9 @@ export class Player implements CombatEntity {
       defense: 2
     };
 
-    // Create sprite with placeholder (no texture yet)
-    this.sprite = scene.add.sprite(0, 0, '');
+    // Create sprite with entity texture (green for player)
+    this.sprite = scene.add.sprite(0, 0, 'entity');
     this.sprite.setTint(0x00ff00); // Green for visibility
-    this.sprite.setDisplaySize(28, 28); // Slightly smaller than 32x32 tile
   }
 
   move(dx: number, dy: number, map: number[][]): boolean {
