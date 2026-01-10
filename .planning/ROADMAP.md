@@ -41,10 +41,10 @@ Plans:
 **Depends on**: Phase 1
 **Research**: Likely (tactical combat design patterns)
 **Research topics**: Turn-based combat state machines, action point systems, enemy AI patterns for tactical gameplay
-**Plans**: 2-3 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
+- [x] 02-01: Combat System & Damage (completed 2026-01-09)
 - [ ] 02-02: TBD
 - [ ] 02-03: TBD
 
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Core Loop | 3/3 | Complete ✅ | 2026-01-09 |
-| 2. Combat & Enemies | 0/3 | Not started | - |
+| 2. Combat & Enemies | 1/3 | In progress | - |
 | 3. Procedural Generation | 0/3 | Not started | - |
 | 4. Meta-Progression Systems | 0/3 | Not started | - |
 | 5. Run Management | 0/2 | Not started | - |

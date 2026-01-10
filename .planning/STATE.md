@@ -9,28 +9,29 @@ See: .planning/PROJECT.md (updated 2026-01-09)
 
 ## Current Position
 
-Phase: 1 of 5 (Foundation & Core Loop) - COMPLETE ✅
-Plan: All Phase 1 plans complete (3/3)
-Status: Ready for Phase 2
-Last activity: 2026-01-09 — Phase 1 complete
+Phase: 2 of 5 (Combat & Enemies) - IN PROGRESS
+Plan: 1 of 3 complete (02-01 done)
+Status: Working on Phase 2
+Last activity: 2026-01-09 — Phase 2 Plan 1 complete
 
-Progress: ██░░░░░░░░ 21%
+Progress: ███░░░░░░░ 28%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: ~17 min
-- Total execution time: 0.85 hours
+- Total plans completed: 4
+- Average duration: ~12 min
+- Total execution time: ~0.93 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 3 | 50 min | 17 min |
+| 2 | 1 | ~5 min | 5 min |
 
 **Recent Trend:**
-- Last 5 plans: 30 min, 10 min, 10 min
+- Last 5 plans: 10 min, 10 min, ~5 min
 - Trend: Strong velocity
 
 ## Accumulated Context
@@ -53,5 +54,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-01-09
-Stopped at: Phase 1 complete - ready for Phase 2 planning
+Stopped at: Phase 2 Plan 1 complete - combat foundation established
 Resume file: None
