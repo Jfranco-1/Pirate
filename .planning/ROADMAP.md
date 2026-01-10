@@ -45,7 +45,7 @@ Plans:
 
 Plans:
 - [x] 02-01: Combat System & Damage (completed 2026-01-09)
-- [ ] 02-02: TBD
+- [x] 02-02: Enemy Entities & AI (completed 2026-01-09)
 - [ ] 02-03: TBD
 
 ### Phase 3: Procedural Generation
@@ -90,7 +90,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Core Loop | 3/3 | Complete ✅ | 2026-01-09 |
-| 2. Combat & Enemies | 1/3 | In progress | - |
+| 2. Combat & Enemies | 2/3 | In progress | - |
 | 3. Procedural Generation | 0/3 | Not started | - |
 | 4. Meta-Progression Systems | 0/3 | Not started | - |
 | 5. Run Management | 0/2 | Not started | - |
