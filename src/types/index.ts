@@ -24,3 +24,10 @@ export interface CombatEntity extends Entity {
   isAlive(): boolean;
   takeDamage(amount: number): void;
 }
+
+// AI behavior patterns for enemies
+export enum AIBehavior {
+  AGGRESSIVE,  // Chase player, melee attack
+  RANGED,      // Maintain distance, attack from range
+  DEFENSIVE    // Only attack when adjacent
+}
