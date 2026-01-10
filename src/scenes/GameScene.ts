@@ -7,6 +7,9 @@ import { Goblin } from '../entities/enemies/Goblin';
 import { Archer } from '../entities/enemies/Archer';
 import { Brute } from '../entities/enemies/Brute';
 import { TurnManager } from '../systems/TurnManager';
+import { FloatingText } from '../ui/FloatingText';
+import { CombatLog } from '../ui/CombatLog';
+import { TurnIndicator } from '../ui/TurnIndicator';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -18,6 +21,10 @@ export class GameScene extends Phaser.Scene {
   private enemies: Enemy[] = [];
   private turnManager: TurnManager | null = null;
   private gameOverText: Phaser.GameObjects.Text | null = null;
+  private playerStatusPanel: Phaser.GameObjects.Graphics | null = null;
+  private playerStatusText: Phaser.GameObjects.Text | null = null;
+  private combatLog: CombatLog | null = null;
+  private turnIndicator: TurnIndicator | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -119,6 +126,39 @@ export class GameScene extends Phaser.Scene {
         D: Phaser.Input.Keyboard.KeyCodes.D
       }) as { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
     }
+
+    // Create player status panel (top-left UI)
+    this.playerStatusPanel = this.add.graphics();
+    this.playerStatusPanel.setDepth(500); // Always on top
+    this.playerStatusPanel.fillStyle(0x000000, 0.7);
+    this.playerStatusPanel.fillRect(10, 10, 200, 80);
+    this.playerStatusPanel.lineStyle(2, 0xffffff);
+    this.playerStatusPanel.strokeRect(10, 10, 200, 80);
+
+    this.playerStatusText = this.add.text(20, 20, '', {
+      fontSize: '14px',
+      color: '#ffffff',
+      fontStyle: 'bold'
+    });
+    this.playerStatusText.setDepth(501);
+
+    // Create combat log (bottom-right)
+    this.combatLog = new CombatLog(this, 590, 480, 200, 110);
+    this.combatLog.addEntry('Your turn');
+
+    // Create turn indicator (top-center)
+    this.turnIndicator = new TurnIndicator(this, 400, 20);
+
+    // Subscribe to turn change events
+    this.turnManager.onTurnChange = (isPlayerTurn: boolean) => {
+      if (this.turnIndicator) {
+        if (isPlayerTurn) {
+          this.turnIndicator.setPlayerTurn();
+        } else {
+          this.turnIndicator.setEnemyTurn();
+        }
+      }
+    };
   }
 
   private renderMap(): void {
@@ -150,6 +190,15 @@ export class GameScene extends Phaser.Scene {
 
   update(): void {
     if (!this.player || !this.cursors || !this.turnManager) return;
+
+    // Update player status panel
+    if (this.playerStatusText && this.player) {
+      this.playerStatusText.setText(
+        `HP: ${this.player.stats.currentHP}/${this.player.stats.maxHP}\n` +
+        `ATK: ${this.player.stats.attack}\n` +
+        `DEF: ${this.player.stats.defense}`
+      );
+    }
 
     // Check if player is dead
     if (!this.player.isAlive()) {
@@ -185,16 +234,60 @@ export class GameScene extends Phaser.Scene {
 
     // If player successfully moved, end player turn
     if (playerMoved) {
-      this.turnManager.endPlayerTurn(this.player, this.map, this.gridManager);
+      // Track player HP before enemy turn
+      const playerHPBefore = this.player.stats.currentHP;
 
-      // Remove dead enemies after enemy turn
-      for (let i = this.enemies.length - 1; i >= 0; i--) {
-        const enemy = this.enemies[i];
-        if (!enemy.isAlive()) {
-          enemy.sprite.destroy();
-          this.enemies.splice(i, 1);
-        }
+      // Manually switch turn indicator to enemy turn
+      if (this.turnIndicator) {
+        this.turnIndicator.setEnemyTurn();
       }
+
+      // Log enemy turn start
+      if (this.combatLog) {
+        this.combatLog.addEntry('Enemies acting...');
+      }
+
+      // Add delay before enemy turn so player can see the indicator
+      this.time.delayedCall(400, () => {
+        if (!this.player || !this.turnManager) return;
+
+        this.turnManager.endPlayerTurn(this.player, this.map, this.gridManager);
+
+        // Show damage number if player took damage during enemy turn
+        const playerHPAfter = this.player.stats.currentHP;
+        if (playerHPAfter < playerHPBefore) {
+          const damageTaken = playerHPBefore - playerHPAfter;
+          FloatingText.create(
+            this,
+            this.player.sprite.x,
+            this.player.sprite.y - 30,
+            `-${damageTaken}`,
+            '#ff0000' // Red for player damage
+          );
+          // Log enemy damage to player
+          if (this.combatLog) {
+            this.combatLog.addEntry(`Enemy hits you for ${damageTaken} dmg`);
+          }
+        }
+
+        // Remove dead enemies after enemy turn
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+          const enemy = this.enemies[i];
+          if (!enemy.isAlive()) {
+            const enemyName = this.getEnemyName(enemy);
+            if (this.combatLog) {
+              this.combatLog.addEntry(`${enemyName} defeated!`);
+            }
+            enemy.sprite.destroy();
+            this.enemies.splice(i, 1);
+          }
+        }
+
+        // Log player turn start
+        if (this.combatLog) {
+          this.combatLog.addEntry('Your turn');
+        }
+      });
     }
   }
 
@@ -209,7 +302,20 @@ export class GameScene extends Phaser.Scene {
 
     if (targetEnemy) {
       // Attack the enemy
-      this.player.attack(targetEnemy);
+      const damage = this.player.attack(targetEnemy);
+      // Show damage number
+      FloatingText.create(
+        this,
+        targetEnemy.sprite.x,
+        targetEnemy.sprite.y - 30,
+        `-${damage}`,
+        '#ffaa00' // Yellow for enemy damage
+      );
+      // Log the attack
+      const enemyName = this.getEnemyName(targetEnemy);
+      if (this.combatLog) {
+        this.combatLog.addEntry(`You hit ${enemyName} for ${damage} dmg`);
+      }
       return true; // Count as a successful action
     } else {
       // Try to move
@@ -220,5 +326,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     return false;
+  }
+
+  private getEnemyName(enemy: Enemy): string {
+    if (enemy instanceof Goblin) return 'Goblin';
+    if (enemy instanceof Archer) return 'Archer';
+    if (enemy instanceof Brute) return 'Brute';
+    return 'Enemy';
   }
 }

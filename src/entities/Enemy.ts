@@ -4,6 +4,7 @@ import { GridManager } from '../systems/GridManager';
 import { CombatSystem } from '../systems/CombatSystem';
 import { Player } from './Player';
 import { AISystem } from '../systems/AISystem';
+import { HealthBar } from '../ui/HealthBar';
 
 /**
  * Base Enemy class with combat and AI capabilities
@@ -18,6 +19,7 @@ export class Enemy implements CombatEntity {
   behavior: AIBehavior;
   sprite: Phaser.GameObjects.Sprite;
   protected scene: Phaser.Scene;
+  private healthBar: HealthBar;
 
   constructor(
     scene: Phaser.Scene,
@@ -36,6 +38,9 @@ export class Enemy implements CombatEntity {
     // Create sprite with entity texture and color tint
     this.sprite = scene.add.sprite(0, 0, 'entity');
     this.sprite.setTint(color);
+
+    // Create health bar
+    this.healthBar = new HealthBar(scene, stats.maxHP, stats.currentHP);
   }
 
   isAlive(): boolean {
@@ -44,7 +49,9 @@ export class Enemy implements CombatEntity {
 
   takeDamage(amount: number): void {
     CombatSystem.applyDamage(this, amount);
+    this.healthBar.update(this.stats.currentHP, this.stats.maxHP);
     if (!this.isAlive()) {
+      this.healthBar.destroy();
       this.sprite.destroy();
     }
   }
@@ -63,6 +70,7 @@ export class Enemy implements CombatEntity {
   updateSpritePosition(gridManager: GridManager): void {
     const pixelPos = gridManager.gridToPixel({ x: this.gridX, y: this.gridY });
     this.sprite.setPosition(pixelPos.x, pixelPos.y);
+    this.healthBar.setPosition(pixelPos.x, pixelPos.y);
   }
 
   /**

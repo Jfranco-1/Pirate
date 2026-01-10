@@ -13,6 +13,7 @@ import { GridManager } from './GridManager';
 export class TurnManager {
   private state: TurnState = TurnState.PLAYER_TURN;
   private enemies: Enemy[] = [];
+  public onTurnChange: ((isPlayerTurn: boolean) => void) | null = null;
 
   addEnemy(enemy: Enemy): void {
     this.enemies.push(enemy);
@@ -32,6 +33,9 @@ export class TurnManager {
   endPlayerTurn(player: Player, map: number[][], gridManager: GridManager): void {
     // Switch to enemy turn
     this.state = TurnState.ENEMY_TURN;
+    if (this.onTurnChange) {
+      this.onTurnChange(false); // Not player turn
+    }
 
     // Process all living enemies
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -46,6 +50,9 @@ export class TurnManager {
 
     // Switch back to player turn
     this.state = TurnState.PLAYER_TURN;
+    if (this.onTurnChange) {
+      this.onTurnChange(true); // Player turn
+    }
   }
 
   getCurrentState(): TurnState {
