@@ -10,29 +10,29 @@ See: .planning/PROJECT.md (updated 2026-01-09)
 ## Current Position
 
 Phase: 2 of 5 (Combat & Enemies) - COMPLETE ✅
-Plan: 3 of 3 complete (02-01, 02-02, 02-03 done)
-Status: Phase 2 complete, ready for Phase 3
-Last activity: 2026-01-10 — Phase 2 complete
+Plan: 4 of 4 complete (02-01, 02-02, 02-03, 02-04 done)
+Status: Phase 2 complete with items system, ready for Phase 3
+Last activity: 2026-01-11 — Items & consumables system added
 
 Progress: ████░░░░░░ 43%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
-- Average duration: ~12 min
-- Total execution time: ~1.2 hours
+- Total plans completed: 7
+- Average duration: ~15 min
+- Total execution time: ~2 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1 | 3 | 50 min | 17 min |
-| 2 | 3 | ~20 min | 7 min |
+| 2 | 4 | ~60 min | 15 min |
 
 **Recent Trend:**
-- Last 5 plans: ~5 min, ~5 min, ~10 min
-- Trend: Strong velocity
+- Last 5 plans: ~5 min, ~10 min, ~40 min
+- Trend: Strong velocity (02-04 was comprehensive items system)
 
 ## Accumulated Context
 
@@ -53,6 +53,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-01-10
-Stopped at: Phase 2 complete - turn-based tactical combat functional
+Last session: 2026-01-11
+Stopped at: Phase 2 complete with items system - 5-slot inventory, consumables, throwables with targeting
 Resume file: None

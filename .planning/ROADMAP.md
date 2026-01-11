@@ -41,12 +41,13 @@ Plans:
 **Depends on**: Phase 1
 **Research**: Likely (tactical combat design patterns)
 **Research topics**: Turn-based combat state machines, action point systems, enemy AI patterns for tactical gameplay
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [x] 02-01: Combat System & Damage (completed 2026-01-09)
 - [x] 02-02: Enemy Entities & AI (completed 2026-01-09)
 - [x] 02-03: Turn Management & Combat Flow (completed 2026-01-10)
+- [x] 02-04: Items & Consumables System (completed 2026-01-11)
 
 ### Phase 3: Procedural Generation
 **Goal**: Generate varied dungeon layouts with room types and connectivity
@@ -90,7 +91,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Core Loop | 3/3 | Complete ✅ | 2026-01-09 |
-| 2. Combat & Enemies | 3/3 | Complete ✅ | 2026-01-10 |
+| 2. Combat & Enemies | 4/4 | Complete ✅ | 2026-01-11 |
 | 3. Procedural Generation | 0/3 | Not started | - |
 | 4. Meta-Progression Systems | 0/3 | Not started | - |
 | 5. Run Management | 0/2 | Not started | - |
