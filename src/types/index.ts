@@ -60,3 +60,56 @@ export interface StatusEffect {
   potency: number;       // Damage/heal per turn OR stat modifier
   stacks: number;        // How many stacks (for bleeding)
 }
+
+// Item type enumeration
+export enum ItemType {
+  HEALTH_POTION,
+  STRENGTH_POTION,
+  DEFENSE_POTION,
+  POISON_BOMB,
+  FIRE_BOMB
+}
+
+// Item category for behavior handling
+export enum ItemCategory {
+  INSTANT_CONSUMABLE,  // Use immediately on player (health potion)
+  BUFF_CONSUMABLE,     // Apply buff status effect to player
+  THROWABLE            // Requires target selection
+}
+
+// Item metadata definition
+export interface ItemDefinition {
+  type: ItemType;
+  name: string;
+  category: ItemCategory;
+  description: string;
+  iconColor: number;
+  maxStack: number;
+
+  // Effect parameters (optional based on category)
+  healAmount?: number;
+  buffType?: StatusEffectType;
+  buffDuration?: number;
+  buffPotency?: number;
+  throwEffect?: StatusEffectType;
+  throwPotency?: number;
+  throwDuration?: number;
+}
+
+// Inventory slot data
+export interface InventorySlot {
+  itemType: ItemType | null;
+  quantity: number;
+}
+
+// World item entity (physical item on map)
+export interface WorldItem extends Entity {
+  itemType: ItemType;
+  sprite: Phaser.GameObjects.Sprite;
+}
+
+// Game state for targeting mode
+export enum GameState {
+  NORMAL,
+  TARGETING
+}
