@@ -12,6 +12,11 @@ import { CombatLog } from '../ui/CombatLog';
 import { TurnIndicator } from '../ui/TurnIndicator';
 import { ParticleSystem } from '../systems/ParticleSystem';
 import { SoundManager } from '../systems/SoundManager';
+import { WorldItemEntity } from '../entities/WorldItem';
+import { ItemDatabase } from '../systems/ItemDatabase';
+import { InventoryManager } from '../systems/InventoryManager';
+import { InventoryUI } from '../ui/InventoryUI';
+import { ItemType, ItemCategory, GameState } from '../types';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -20,6 +25,7 @@ export class GameScene extends Phaser.Scene {
   private player: Player | null = null;
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | undefined;
   private wasdKeys: { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key } | undefined;
+  private numberKeys: Phaser.Input.Keyboard.Key[] = [];
   private enemies: Enemy[] = [];
   private turnManager: TurnManager | null = null;
   private gameOverText: Phaser.GameObjects.Text | null = null;
@@ -28,6 +34,15 @@ export class GameScene extends Phaser.Scene {
   private combatLog: CombatLog | null = null;
   private turnIndicator: TurnIndicator | null = null;
   private soundManager: SoundManager | null = null;
+  private worldItems: WorldItemEntity[] = [];
+  private inventoryManager: InventoryManager | null = null;
+  private inventoryUI: InventoryUI | null = null;
+  private gameState: GameState = GameState.NORMAL;
+  // Targeting system properties
+  private targetingSlotIndex: number = -1;
+  private targetingItemType: ItemType | null = null;
+  private targetCursorSprite: Phaser.GameObjects.Sprite | null = null;
+  private targetedEnemyIndex: number = 0;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -179,6 +194,39 @@ export class GameScene extends Phaser.Scene {
       this.turnManager.addEnemy(enemy);
     }
 
+    // Create inventory manager
+    this.inventoryManager = new InventoryManager();
+
+    // Spawn 3-5 items randomly on floor tiles
+    const numItems = Phaser.Math.Between(3, 5);
+    for (let i = 0; i < numItems; i++) {
+      let itemX = 0;
+      let itemY = 0;
+      let attempts = 0;
+
+      // Find random unoccupied floor tile
+      while (attempts < 100) {
+        itemX = Phaser.Math.Between(0, this.map[0].length - 1);
+        itemY = Phaser.Math.Between(0, this.map.length - 1);
+
+        // Check if floor tile, not player, not enemy, not other item
+        const occupied = (itemX === this.player.gridX && itemY === this.player.gridY) ||
+                         this.enemies.some(e => e.gridX === itemX && e.gridY === itemY) ||
+                         this.worldItems.some(item => item.gridX === itemX && item.gridY === itemY);
+
+        if (this.map[itemY][itemX] === 0 && !occupied) {
+          break;
+        }
+        attempts++;
+      }
+
+      // Create random item
+      const itemType = ItemDatabase.getRandomItemType();
+      const worldItem = new WorldItemEntity(this, itemX, itemY, itemType);
+      worldItem.updateSpritePosition(this.gridManager);
+      this.worldItems.push(worldItem);
+    }
+
     // Setup keyboard input
     this.cursors = this.input.keyboard?.createCursorKeys();
     if (this.input.keyboard) {
@@ -188,6 +236,15 @@ export class GameScene extends Phaser.Scene {
         S: Phaser.Input.Keyboard.KeyCodes.S,
         D: Phaser.Input.Keyboard.KeyCodes.D
       }) as { W: Phaser.Input.Keyboard.Key; A: Phaser.Input.Keyboard.Key; S: Phaser.Input.Keyboard.Key; D: Phaser.Input.Keyboard.Key };
+
+      // Add number keys 1-5 for item usage
+      this.numberKeys = [
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ONE),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.TWO),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.THREE),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
+        this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE)
+      ];
     }
 
     // Create player status panel (top-left UI)
@@ -222,6 +279,9 @@ export class GameScene extends Phaser.Scene {
         }
       }
     };
+
+    // Create inventory UI (bottom-left)
+    this.inventoryUI = new InventoryUI(this, 10, 530, this.inventoryManager);
 
     // Create sound manager
     this.soundManager = new SoundManager();
@@ -281,6 +341,41 @@ export class GameScene extends Phaser.Scene {
     // Only allow input during player turn
     if (!this.turnManager.isPlayerTurn()) return;
 
+    // Handle targeting mode input (blocks normal input)
+    if (this.gameState === GameState.TARGETING) {
+      // Arrow keys cycle through enemies
+      if (Phaser.Input.Keyboard.JustDown(this.cursors.left) ||
+          (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.A))) {
+        this.targetPreviousEnemy();
+      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.right) ||
+                 (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.D))) {
+        this.targetNextEnemy();
+      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
+                 (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.W))) {
+        this.targetPreviousEnemy();
+      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.down) ||
+                 (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.S))) {
+        this.targetNextEnemy();
+      }
+
+      // Enter key confirms throw
+      if (this.input.keyboard) {
+        const enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+        if (Phaser.Input.Keyboard.JustDown(enterKey)) {
+          this.confirmThrow();
+          return;
+        }
+
+        // Escape key cancels targeting
+        const escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
+        if (Phaser.Input.Keyboard.JustDown(escKey)) {
+          this.cancelTargeting();
+        }
+      }
+
+      return;  // Block normal input during targeting
+    }
+
     let playerMoved = false;
 
     // Check for arrow key or WASD input using JustDown to prevent repeat firing
@@ -296,6 +391,18 @@ export class GameScene extends Phaser.Scene {
     } else if (Phaser.Input.Keyboard.JustDown(this.cursors.right) ||
                (this.wasdKeys && Phaser.Input.Keyboard.JustDown(this.wasdKeys.D))) {
       playerMoved = this.handlePlayerMove(1, 0);
+    }
+
+    // Check for item usage (number keys 1-5)
+    if (!playerMoved) {
+      for (let i = 0; i < this.numberKeys.length; i++) {
+        if (Phaser.Input.Keyboard.JustDown(this.numberKeys[i])) {
+          if (this.handleItemUsage(i)) {
+            playerMoved = true;  // Item usage costs a turn
+            break;  // Only one item per turn
+          }
+        }
+      }
     }
 
     // If player successfully moved, end player turn
@@ -425,6 +532,7 @@ export class GameScene extends Phaser.Scene {
       // Try to move
       if (this.player.move(dx, dy, this.map)) {
         this.player.updateSpritePosition(this.gridManager);
+        this.checkItemPickup();  // Check for items at new position
         return true;
       }
     }
@@ -432,10 +540,470 @@ export class GameScene extends Phaser.Scene {
     return false;
   }
 
+  /**
+   * Check if player is standing on an item and pick it up
+   */
+  private checkItemPickup(): void {
+    if (!this.player || !this.inventoryManager) return;
+
+    // Find item at player position
+    const itemIndex = this.worldItems.findIndex(
+      item => item.gridX === this.player!.gridX && item.gridY === this.player!.gridY
+    );
+
+    if (itemIndex === -1) return;  // No item at position
+
+    const worldItem = this.worldItems[itemIndex];
+    const itemType = worldItem.itemType;
+    const definition = ItemDatabase.getDefinition(itemType);
+
+    // Try to add to inventory
+    if (this.inventoryManager.addItem(itemType)) {
+      // Pickup successful
+      if (this.combatLog) {
+        this.combatLog.addEntry(`Picked up ${definition.name}`);
+      }
+
+      // Visual feedback: floating text
+      FloatingText.create(
+        this,
+        worldItem.sprite.x,
+        worldItem.sprite.y,
+        definition.name,
+        '#ffff00'  // Yellow for pickups
+      );
+
+      // Remove from world
+      worldItem.destroy();
+      this.worldItems.splice(itemIndex, 1);
+    } else {
+      // Inventory full
+      if (this.combatLog) {
+        this.combatLog.addEntry('Inventory full!');
+      }
+    }
+  }
+
+  /**
+   * Handle item usage from inventory slot
+   * Returns true if usage successful (counts as turn action)
+   */
+  private handleItemUsage(slotIndex: number): boolean {
+    if (!this.player || !this.inventoryManager) return false;
+    if (this.gameState !== GameState.NORMAL) return false;  // Don't use during targeting
+
+    // Check if slot has item
+    if (!this.inventoryManager.hasItemInSlot(slotIndex)) {
+      return false;  // Empty slot, no action
+    }
+
+    // Get item type before using (useItem removes it)
+    const itemType = this.inventoryManager.getItemInSlot(slotIndex);
+    if (itemType === null) return false;
+
+    const definition = ItemDatabase.getDefinition(itemType);
+
+    // Handle based on category
+    switch (definition.category) {
+      case ItemCategory.INSTANT_CONSUMABLE:
+        return this.useInstantItem(slotIndex, definition);
+
+      case ItemCategory.BUFF_CONSUMABLE:
+        return this.useBuffItem(slotIndex, definition);
+
+      case ItemCategory.THROWABLE:
+        return this.startTargeting(slotIndex, itemType);
+    }
+
+    return false;
+  }
+
+  /**
+   * Use instant consumable (health potion)
+   */
+  private useInstantItem(slotIndex: number, definition: any): boolean {
+    if (!this.player || !this.inventoryManager) return false;
+
+    // Consume item from inventory
+    const itemType = this.inventoryManager.useItem(slotIndex);
+    if (itemType === null) return false;
+
+    // Apply healing
+    if (definition.healAmount) {
+      const healAmount = Math.min(
+        definition.healAmount,
+        this.player.stats.maxHP - this.player.stats.currentHP
+      );
+
+      this.player.stats.currentHP += healAmount;
+
+      // Visual feedback
+      FloatingText.create(
+        this,
+        this.player.sprite.x,
+        this.player.sprite.y - 30,
+        `+${healAmount}`,
+        '#00ff00'  // Green for healing
+      );
+
+      ParticleSystem.createHealSparkle(this, this.player.sprite.x, this.player.sprite.y);
+
+      // Combat log
+      if (this.combatLog) {
+        this.combatLog.addEntry(`Used ${definition.name} - healed ${healAmount} HP`);
+      }
+    }
+
+    return true;  // Successful usage, costs turn
+  }
+
+  /**
+   * Use buff consumable (strength/defense potion)
+   */
+  private useBuffItem(slotIndex: number, definition: any): boolean {
+    if (!this.player || !this.inventoryManager) return false;
+
+    // Consume item from inventory
+    const itemType = this.inventoryManager.useItem(slotIndex);
+    if (itemType === null) return false;
+
+    // Apply buff status effect
+    if (definition.buffType && definition.buffDuration && definition.buffPotency) {
+      this.player.statusManager.applyEffect({
+        type: definition.buffType,
+        duration: definition.buffDuration,
+        potency: definition.buffPotency,
+        stacks: 1
+      });
+
+      this.player.updateStatusIcons();
+
+      // Visual feedback
+      const buffColor = definition.buffType === 9  // STRENGTH_BUFF
+        ? '#ff6600'  // Orange
+        : '#0088ff';  // Blue
+
+      FloatingText.create(
+        this,
+        this.player.sprite.x,
+        this.player.sprite.y - 30,
+        definition.name,
+        buffColor
+      );
+
+      // Particle effect
+      ParticleSystem.createHealSparkle(this, this.player.sprite.x, this.player.sprite.y);
+
+      // Combat log
+      if (this.combatLog) {
+        const buffName = definition.buffType === 9  // STRENGTH_BUFF
+          ? 'Strength'
+          : 'Defense';
+        this.combatLog.addEntry(`Used ${definition.name} - gained ${buffName} buff`);
+      }
+    }
+
+    return true;  // Successful usage, costs turn
+  }
+
+  /**
+   * Start targeting mode for throwable items
+   * Returns false since targeting doesn't cost a turn until confirmed
+   */
+  private startTargeting(slotIndex: number, itemType: ItemType): boolean {
+    // Check if there are any enemies to target
+    if (this.enemies.length === 0) {
+      if (this.combatLog) {
+        this.combatLog.addEntry('No enemies to target!');
+      }
+      return false;
+    }
+
+    // Enter targeting mode
+    this.gameState = GameState.TARGETING;
+    this.targetingSlotIndex = slotIndex;
+    this.targetingItemType = itemType;
+    this.targetedEnemyIndex = 0;
+
+    // Create cursor sprite on first enemy
+    const firstEnemy = this.enemies[0];
+    this.targetCursorSprite = this.add.sprite(
+      firstEnemy.sprite.x,
+      firstEnemy.sprite.y,
+      'entity'
+    );
+    this.targetCursorSprite.setTint(0xffff00);  // Yellow
+    this.targetCursorSprite.setScale(1.2);
+    this.targetCursorSprite.setAlpha(0.5);
+    this.targetCursorSprite.setDepth(150);  // Above entities
+
+    // Pulsing animation
+    this.tweens.add({
+      targets: this.targetCursorSprite,
+      scale: 1.4,
+      alpha: 0.3,
+      duration: 500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Combat log instruction
+    const definition = ItemDatabase.getDefinition(itemType);
+    if (this.combatLog) {
+      this.combatLog.addEntry(`Targeting ${definition.name} - arrows to select, Enter to throw, ESC to cancel`);
+    }
+
+    return false;  // Don't end turn yet
+  }
+
+  /**
+   * Cycle to next enemy in targeting mode
+   */
+  private targetNextEnemy(): void {
+    if (this.enemies.length === 0) return;
+
+    this.targetedEnemyIndex = (this.targetedEnemyIndex + 1) % this.enemies.length;
+    this.updateTargetCursor();
+  }
+
+  /**
+   * Cycle to previous enemy in targeting mode
+   */
+  private targetPreviousEnemy(): void {
+    if (this.enemies.length === 0) return;
+
+    this.targetedEnemyIndex--;
+    if (this.targetedEnemyIndex < 0) {
+      this.targetedEnemyIndex = this.enemies.length - 1;
+    }
+    this.updateTargetCursor();
+  }
+
+  /**
+   * Update cursor position to current target
+   */
+  private updateTargetCursor(): void {
+    if (!this.targetCursorSprite || this.enemies.length === 0) return;
+
+    const targetEnemy = this.enemies[this.targetedEnemyIndex];
+    this.targetCursorSprite.setPosition(targetEnemy.sprite.x, targetEnemy.sprite.y);
+  }
+
+  /**
+   * Confirm throw and apply effect to targeted enemy
+   * This costs a turn
+   */
+  private confirmThrow(): void {
+    if (!this.player || !this.inventoryManager || !this.targetingItemType) return;
+    if (this.enemies.length === 0) return;
+
+    const targetEnemy = this.enemies[this.targetedEnemyIndex];
+    const definition = ItemDatabase.getDefinition(this.targetingItemType);
+
+    // Consume item from inventory
+    const itemType = this.inventoryManager.useItem(this.targetingSlotIndex);
+    if (itemType === null) {
+      this.cancelTargeting();
+      return;
+    }
+
+    // Animate projectile from player to enemy
+    this.animateProjectile(
+      this.player.sprite.x,
+      this.player.sprite.y,
+      targetEnemy.sprite.x,
+      targetEnemy.sprite.y,
+      definition.iconColor,
+      () => {
+        // Apply status effect on impact
+        if (definition.throwEffect && definition.throwPotency && definition.throwDuration) {
+          targetEnemy.statusManager.applyEffect({
+            type: definition.throwEffect,
+            duration: definition.throwDuration,
+            potency: definition.throwPotency,
+            stacks: 1
+          });
+
+          targetEnemy.updateStatusIcons();
+
+          // Visual effect on impact
+          if (itemType === ItemType.POISON_BOMB) {
+            ParticleSystem.createPoisonCloud(this, targetEnemy.sprite.x, targetEnemy.sprite.y);
+          } else if (itemType === ItemType.FIRE_BOMB) {
+            ParticleSystem.createFireBurst(this, targetEnemy.sprite.x, targetEnemy.sprite.y);
+          }
+
+          // Combat log
+          const enemyName = this.getEnemyName(targetEnemy);
+          const effectName = itemType === ItemType.POISON_BOMB ? 'Poisoned' : 'Burned';
+          if (this.combatLog) {
+            this.combatLog.addEntry(`Threw ${definition.name} at ${enemyName} - ${effectName}!`);
+          }
+        }
+      }
+    );
+
+    // Cancel targeting mode
+    this.cancelTargeting();
+
+    // Trigger enemy turn (item usage costs turn)
+    // Use delayed call to let projectile animation play
+    this.time.delayedCall(400, () => {
+      if (!this.player || !this.turnManager) return;
+
+      const playerHPBefore = this.player.stats.currentHP;
+
+      if (this.turnIndicator) {
+        this.turnIndicator.setEnemyTurn();
+      }
+
+      if (this.combatLog) {
+        this.combatLog.addEntry('Enemies acting...');
+      }
+
+      this.time.delayedCall(400, () => {
+        if (!this.player || !this.turnManager) return;
+
+        this.turnManager.endPlayerTurn(this.player, this.map, this.gridManager);
+
+        const playerHPAfter = this.player.stats.currentHP;
+        if (playerHPAfter < playerHPBefore) {
+          const damageTaken = playerHPBefore - playerHPAfter;
+
+          if (this.soundManager) {
+            if (damageTaken >= 5) {
+              this.soundManager.playHeavyHit();
+            } else {
+              this.soundManager.playHit();
+            }
+          }
+
+          ParticleSystem.createHitSparks(this, this.player.sprite.x, this.player.sprite.y);
+          ParticleSystem.createBloodBurst(this, this.player.sprite.x, this.player.sprite.y, damageTaken / 5);
+
+          FloatingText.create(
+            this,
+            this.player.sprite.x,
+            this.player.sprite.y - 30,
+            `-${damageTaken}`,
+            '#ff0000'
+          );
+
+          if (this.combatLog) {
+            this.combatLog.addEntry(`Enemy hits you for ${damageTaken} dmg`);
+          }
+        }
+
+        // Remove dead enemies
+        for (let i = this.enemies.length - 1; i >= 0; i--) {
+          const enemy = this.enemies[i];
+          if (!enemy.isAlive()) {
+            const enemyName = this.getEnemyName(enemy);
+
+            if (this.soundManager) {
+              this.soundManager.playDeath();
+            }
+
+            ParticleSystem.createDeathExplosion(this, enemy.sprite.x, enemy.sprite.y, enemy.sprite.tintTopLeft);
+
+            if (this.combatLog) {
+              this.combatLog.addEntry(`${enemyName} defeated!`);
+            }
+            enemy.sprite.destroy();
+            this.enemies.splice(i, 1);
+          }
+        }
+
+        if (this.combatLog) {
+          this.combatLog.addEntry('Your turn');
+        }
+      });
+    });
+  }
+
+  /**
+   * Cancel targeting mode
+   */
+  private cancelTargeting(): void {
+    this.gameState = GameState.NORMAL;
+    this.targetingSlotIndex = -1;
+    this.targetingItemType = null;
+    this.targetedEnemyIndex = 0;
+
+    if (this.targetCursorSprite) {
+      this.targetCursorSprite.destroy();
+      this.targetCursorSprite = null;
+    }
+  }
+
+  /**
+   * Animate projectile from start to end position
+   */
+  private animateProjectile(
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    color: number,
+    onComplete: () => void
+  ): void {
+    // Create projectile sprite
+    const projectile = this.add.sprite(startX, startY, 'entity');
+    projectile.setTint(color);
+    projectile.setScale(0.5);
+    projectile.setDepth(200);  // Above everything
+
+    // Tween to target
+    this.tweens.add({
+      targets: projectile,
+      x: endX,
+      y: endY,
+      duration: 300,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        projectile.destroy();
+        onComplete();
+      }
+    });
+  }
+
   private getEnemyName(enemy: Enemy): string {
     if (enemy instanceof Goblin) return 'Goblin';
     if (enemy instanceof Archer) return 'Archer';
     if (enemy instanceof Brute) return 'Brute';
     return 'Enemy';
+  }
+
+  /**
+   * Debug method: Give item to player inventory
+   * Usage in browser console: game.scene.scenes[0].giveItem(0) for health potion
+   */
+  giveItem(itemType: ItemType): void {
+    if (!this.inventoryManager) return;
+
+    const success = this.inventoryManager.addItem(itemType);
+    const definition = ItemDatabase.getDefinition(itemType);
+
+    if (success) {
+      console.log(`Added ${definition.name} to inventory`);
+    } else {
+      console.log('Inventory full!');
+    }
+  }
+
+  /**
+   * Debug method: Spawn item at player position
+   * Usage in browser console: game.scene.scenes[0].spawnItemAtPlayer(0)
+   */
+  spawnItemAtPlayer(itemType: ItemType): void {
+    if (!this.player) return;
+
+    const worldItem = new WorldItemEntity(this, this.player.gridX, this.player.gridY, itemType);
+    worldItem.updateSpritePosition(this.gridManager);
+    this.worldItems.push(worldItem);
+
+    const definition = ItemDatabase.getDefinition(itemType);
+    console.log(`Spawned ${definition.name} at player position`);
   }
 }
