@@ -31,10 +31,28 @@ export class TurnManager {
   }
 
   endPlayerTurn(player: Player, map: number[][], gridManager: GridManager): void {
+    // Tick player status effects before ending turn
+    if (player.isAlive()) {
+      const { damage, healing } = player.statusManager.tick();
+      player.updateStatusIcons();
+      // Damage/healing is applied directly by StatusEffectManager
+      // GameScene will handle visual feedback via callbacks
+    }
+
     // Switch to enemy turn
     this.state = TurnState.ENEMY_TURN;
     if (this.onTurnChange) {
       this.onTurnChange(false); // Not player turn
+    }
+
+    // Tick all enemy status effects at start of enemy turn
+    for (const enemy of this.enemies) {
+      if (enemy.isAlive()) {
+        const { damage, healing } = enemy.statusManager.tick();
+        enemy.updateStatusIcons();
+        // Damage/healing is applied directly by StatusEffectManager
+        // GameScene will handle visual feedback via callbacks
+      }
     }
 
     // Process all living enemies

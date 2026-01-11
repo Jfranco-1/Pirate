@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Enemy } from '../Enemy';
-import { AIBehavior } from '../../types';
+import { AIBehavior, CombatEntity } from '../../types';
+import { StatusEffectFactory } from '../../systems/StatusEffect';
 
 /**
  * Brute - Defensive tank enemy
@@ -27,5 +28,27 @@ export class Brute extends Enemy {
       AIBehavior.DEFENSIVE,
       0x0000ff // Blue
     );
+  }
+
+  /**
+   * Override attack to always apply Weakness debuff
+   */
+  attack(target: CombatEntity): number {
+    const damage = super.attack(target);
+
+    // Always apply weakness debuff (-2 attack for 2 turns)
+    if (damage > 0) {
+      const weakness = StatusEffectFactory.createWeakness(2, 2);
+      target.statusManager.applyEffect(weakness);
+      target.updateStatusIcons();
+
+      // Log to combat log (if GameScene)
+      const gameScene = this.scene as any;
+      if (gameScene.combatLog) {
+        gameScene.combatLog.addEntry('Brute inflicts Weakness!');
+      }
+    }
+
+    return damage;
   }
 }

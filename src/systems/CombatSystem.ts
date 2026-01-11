@@ -11,9 +11,18 @@ export class CombatSystem {
    * Calculate damage from attacker to defender
    * Formula: Random(1 to (attack - defense))
    * Returns 0 if defense >= attack
+   *
+   * Accepts optional stat modifiers from status effects (buffs/debuffs)
    */
-  static calculateDamage(attacker: CombatStats, defender: CombatStats): number {
-    const baseDamage = attacker.attack - defender.defense;
+  static calculateDamage(
+    attacker: CombatStats,
+    defender: CombatStats,
+    attackerMods: { attack: number; defense: number } = { attack: 0, defense: 0 },
+    defenderMods: { attack: number; defense: number } = { attack: 0, defense: 0 }
+  ): number {
+    const modifiedAttack = attacker.attack + attackerMods.attack;
+    const modifiedDefense = defender.defense + defenderMods.defense;
+    const baseDamage = modifiedAttack - modifiedDefense;
 
     // No damage if defense is too high
     if (baseDamage <= 0) {

@@ -10,6 +10,8 @@ import { TurnManager } from '../systems/TurnManager';
 import { FloatingText } from '../ui/FloatingText';
 import { CombatLog } from '../ui/CombatLog';
 import { TurnIndicator } from '../ui/TurnIndicator';
+import { ParticleSystem } from '../systems/ParticleSystem';
+import { SoundManager } from '../systems/SoundManager';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -25,6 +27,7 @@ export class GameScene extends Phaser.Scene {
   private playerStatusText: Phaser.GameObjects.Text | null = null;
   private combatLog: CombatLog | null = null;
   private turnIndicator: TurnIndicator | null = null;
+  private soundManager: SoundManager | null = null;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -41,6 +44,13 @@ export class GameScene extends Phaser.Scene {
     textureGraphics.fillRect(0, 0, 28, 28);
     textureGraphics.generateTexture('entity', 28, 28);
     textureGraphics.destroy();
+
+    // Create particle texture (small white circle)
+    const particleGraphics = this.add.graphics();
+    particleGraphics.fillStyle(0xffffff);
+    particleGraphics.fillCircle(2, 2, 2);
+    particleGraphics.generateTexture('particle', 4, 4);
+    particleGraphics.destroy();
 
     // Initialize grid manager (25x18 tiles for 800x600 canvas)
     this.gridManager = new GridManager(25, 18);
@@ -77,6 +87,37 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, startX, startY);
     this.player.updateSpritePosition(this.gridManager);
 
+    // Setup status effect callbacks for player
+    this.player.statusManager.onDamage = (damage: number) => {
+      if (this.player) {
+        FloatingText.create(
+          this,
+          this.player.sprite.x,
+          this.player.sprite.y - 30,
+          `-${damage}`,
+          '#ff6600' // Orange for DoT damage
+        );
+        if (this.combatLog) {
+          this.combatLog.addEntry(`Status deals ${damage} dmg to you`);
+        }
+      }
+    };
+
+    this.player.statusManager.onHeal = (heal: number) => {
+      if (this.player) {
+        FloatingText.create(
+          this,
+          this.player.sprite.x,
+          this.player.sprite.y - 30,
+          `+${heal}`,
+          '#00ff00' // Green for healing
+        );
+        if (this.combatLog) {
+          this.combatLog.addEntry(`You heal ${heal} HP`);
+        }
+      }
+    };
+
     // Create turn manager
     this.turnManager = new TurnManager();
 
@@ -112,6 +153,28 @@ export class GameScene extends Phaser.Scene {
       }
 
       enemy.updateSpritePosition(this.gridManager);
+
+      // Setup status effect callbacks for enemy
+      enemy.statusManager.onDamage = (damage: number) => {
+        FloatingText.create(
+          this,
+          enemy.sprite.x,
+          enemy.sprite.y - 30,
+          `-${damage}`,
+          '#ff6600' // Orange for DoT damage
+        );
+      };
+
+      enemy.statusManager.onHeal = (heal: number) => {
+        FloatingText.create(
+          this,
+          enemy.sprite.x,
+          enemy.sprite.y - 30,
+          `+${heal}`,
+          '#00ff00' // Green for healing
+        );
+      };
+
       this.enemies.push(enemy);
       this.turnManager.addEnemy(enemy);
     }
@@ -159,6 +222,9 @@ export class GameScene extends Phaser.Scene {
         }
       }
     };
+
+    // Create sound manager
+    this.soundManager = new SoundManager();
   }
 
   private renderMap(): void {
@@ -257,6 +323,20 @@ export class GameScene extends Phaser.Scene {
         const playerHPAfter = this.player.stats.currentHP;
         if (playerHPAfter < playerHPBefore) {
           const damageTaken = playerHPBefore - playerHPAfter;
+
+          // Sound effect
+          if (this.soundManager) {
+            if (damageTaken >= 5) {
+              this.soundManager.playHeavyHit();
+            } else {
+              this.soundManager.playHit();
+            }
+          }
+
+          // Visual effects
+          ParticleSystem.createHitSparks(this, this.player.sprite.x, this.player.sprite.y);
+          ParticleSystem.createBloodBurst(this, this.player.sprite.x, this.player.sprite.y, damageTaken / 5);
+
           FloatingText.create(
             this,
             this.player.sprite.x,
@@ -275,6 +355,15 @@ export class GameScene extends Phaser.Scene {
           const enemy = this.enemies[i];
           if (!enemy.isAlive()) {
             const enemyName = this.getEnemyName(enemy);
+
+            // Sound effect
+            if (this.soundManager) {
+              this.soundManager.playDeath();
+            }
+
+            // Death explosion particle effect
+            ParticleSystem.createDeathExplosion(this, enemy.sprite.x, enemy.sprite.y, enemy.sprite.tintTopLeft);
+
             if (this.combatLog) {
               this.combatLog.addEntry(`${enemyName} defeated!`);
             }
@@ -303,6 +392,20 @@ export class GameScene extends Phaser.Scene {
     if (targetEnemy) {
       // Attack the enemy
       const damage = this.player.attack(targetEnemy);
+
+      // Sound effect
+      if (this.soundManager) {
+        if (damage >= 5) {
+          this.soundManager.playHeavyHit();
+        } else {
+          this.soundManager.playHit();
+        }
+      }
+
+      // Visual effects
+      ParticleSystem.createHitSparks(this, targetEnemy.sprite.x, targetEnemy.sprite.y);
+      ParticleSystem.createBloodBurst(this, targetEnemy.sprite.x, targetEnemy.sprite.y, damage / 5);
+
       // Show damage number
       FloatingText.create(
         this,
@@ -311,6 +414,7 @@ export class GameScene extends Phaser.Scene {
         `-${damage}`,
         '#ffaa00' // Yellow for enemy damage
       );
+
       // Log the attack
       const enemyName = this.getEnemyName(targetEnemy);
       if (this.combatLog) {

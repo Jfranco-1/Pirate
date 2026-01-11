@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Enemy } from '../Enemy';
-import { AIBehavior } from '../../types';
+import { AIBehavior, CombatEntity } from '../../types';
+import { StatusEffectFactory } from '../../systems/StatusEffect';
 
 /**
  * Goblin - Aggressive melee enemy
@@ -27,5 +28,27 @@ export class Goblin extends Enemy {
       AIBehavior.AGGRESSIVE,
       0xff0000 // Red
     );
+  }
+
+  /**
+   * Override attack to add 30% chance of applying Bleeding
+   */
+  attack(target: CombatEntity): number {
+    const damage = super.attack(target);
+
+    // 30% chance to apply bleeding (stacking DoT)
+    if (damage > 0 && Math.random() < 0.3) {
+      const bleeding = StatusEffectFactory.createBleeding(1, 3);
+      target.statusManager.applyEffect(bleeding);
+      target.updateStatusIcons();
+
+      // Log to combat log (if GameScene)
+      const gameScene = this.scene as any;
+      if (gameScene.combatLog) {
+        gameScene.combatLog.addEntry('Goblin inflicts Bleeding!');
+      }
+    }
+
+    return damage;
   }
 }
