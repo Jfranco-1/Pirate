@@ -121,4 +121,27 @@ export class ParticleSystem {
       emitter.destroy();
     });
   }
+
+  /**
+   * Create fire burst particles (orange-red, radial burst with slight gravity)
+   */
+  static createFireBurst(scene: Phaser.Scene, x: number, y: number): void {
+    const emitter = scene.add.particles(x, y, 'particle', {
+      speed: { min: 60, max: 120 },
+      angle: { min: 0, max: 360 }, // Radial burst
+      scale: { start: 1.2, end: 0 },
+      tint: 0xff4400, // Orange-red
+      alpha: { start: 1, end: 0 },
+      lifespan: 600,
+      gravityY: 100, // Slight downward pull
+      quantity: 12,
+      frequency: -1 // Emit once
+    });
+
+    emitter.setDepth(100);
+
+    scene.time.delayedCall(700, () => {
+      emitter.destroy();
+    });
+  }
 }
