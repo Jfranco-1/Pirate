@@ -113,3 +113,32 @@ export enum GameState {
   NORMAL,
   TARGETING
 }
+
+// Room type for dungeon generation
+export enum RoomType {
+  START,      // Player spawn room
+  NORMAL,     // Standard room
+  BOSS,       // Boss encounter room
+  TREASURE,   // Item-rich room
+  CHALLENGE   // Multiple enemies room
+}
+
+// Room theme for visual variety
+export enum RoomTheme {
+  DUNGEON,    // Stone dungeon aesthetic
+  CAVE,       // Organic cave aesthetic
+  CRYPT,      // Undead/tomb aesthetic
+  LIBRARY     // Books/knowledge aesthetic
+}
+
+// Room metadata for procedural generation
+export interface RoomData {
+  x: number;              // Left coordinate
+  y: number;              // Top coordinate
+  width: number;          // Width in tiles
+  height: number;         // Height in tiles
+  type: RoomType;         // Room purpose
+  theme: RoomTheme;       // Visual theme
+  difficulty: number;     // 1-5 difficulty rating
+  connections: number[];  // Indices of connected rooms
+}
