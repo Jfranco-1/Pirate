@@ -92,6 +92,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation & Core Loop | 3/3 | Complete ✅ | 2026-01-09 |
 | 2. Combat & Enemies | 4/4 | Complete ✅ | 2026-01-11 |
-| 3. Procedural Generation | 1/3 | In progress | - |
+| 3. Procedural Generation | 2/3 | In progress | - |
 | 4. Meta-Progression Systems | 0/3 | Not started | - |
 | 5. Run Management | 0/2 | Not started | - |
