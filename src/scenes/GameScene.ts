@@ -16,10 +16,12 @@ import { WorldItemEntity } from '../entities/WorldItem';
 import { ItemDatabase } from '../systems/ItemDatabase';
 import { InventoryManager } from '../systems/InventoryManager';
 import { InventoryUI } from '../ui/InventoryUI';
-import { ItemType, ItemCategory, GameState } from '../types';
+import { DungeonGenerator } from '../systems/DungeonGenerator';
+import { ItemType, ItemCategory, GameState, RoomData } from '../types';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
+  private rooms: RoomData[] = [];
   private gridManager!: GridManager;
   private graphics!: Phaser.GameObjects.Graphics;
   private player: Player | null = null;
@@ -70,14 +72,18 @@ export class GameScene extends Phaser.Scene {
     // Initialize grid manager (25x18 tiles for 800x600 canvas)
     this.gridManager = new GridManager(25, 18);
 
-    // Generate dungeon with Rot.js Digger algorithm
-    const digger = new ROT.Map.Digger(25, 18);
-    digger.create((x, y, value) => {
-      if (!this.map[y]) {
-        this.map[y] = [];
-      }
-      this.map[y][x] = value;
-    });
+    // Generate dungeon with metadata extraction
+    const dungeonGen = new DungeonGenerator();
+    const { map, rooms } = dungeonGen.generate(25, 18);
+    this.map = map;
+    this.rooms = rooms;
+
+    // Log room data for verification
+    console.log(`Generated ${rooms.length} rooms:`, rooms.map(r => ({
+      type: ['START', 'NORMAL', 'BOSS', 'TREASURE', 'CHALLENGE'][r.type],
+      theme: ['DUNGEON', 'CAVE', 'CRYPT', 'LIBRARY'][r.theme],
+      difficulty: r.difficulty
+    })));
 
     // Initialize graphics for rendering
     this.graphics = this.add.graphics();
