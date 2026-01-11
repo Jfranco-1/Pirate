@@ -1,5 +1,6 @@
 import ROT from 'rot-js';
 import { RoomData, RoomType, RoomTheme } from '../types';
+import { ConnectivityValidator } from './ConnectivityValidator';
 
 /**
  * DungeonGenerator - Wraps Rot.js Digger algorithm with room metadata extraction
@@ -28,6 +29,17 @@ export class DungeonGenerator {
       }
       map[y][x] = value;
     });
+
+    // Validate and repair connectivity
+    const validator = new ConnectivityValidator();
+    const result = validator.validateConnectivity(map);
+
+    if (!result.connected) {
+      const repaired = validator.validateAndRepair(map);
+      if (repaired) {
+        console.log(`Connected ${result.regions.length} disconnected regions`);
+      }
+    }
 
     // Extract room data from Rot.js
     const rotRooms = digger.getRooms();
