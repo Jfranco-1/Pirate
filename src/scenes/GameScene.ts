@@ -296,11 +296,74 @@ export class GameScene extends Phaser.Scene {
         attempts++;
       }
 
-      // Create random item
-      const itemType = ItemDatabase.getRandomItemType();
-      const worldItem = new WorldItemEntity(this, itemX, itemY, itemType);
-      worldItem.updateSpritePosition(this.gridManager);
-      this.worldItems.push(worldItem);
+      // Find which room this position belongs to
+      const itemRoom = this.rooms.find(r =>
+        itemX >= r.x && itemX < r.x + r.width &&
+        itemY >= r.y && itemY < r.y + r.height
+      );
+
+      // Skip item spawning in BOSS rooms (no easy healing)
+      if (itemRoom && itemRoom.type === RoomType.BOSS) {
+        continue;
+      }
+
+      // Determine item spawning based on room type
+      if (itemRoom && itemRoom.type === RoomType.TREASURE) {
+        // TREASURE room: spawn 2-3 items with health/buff bias
+        const treasureCount = Phaser.Math.Between(2, 3);
+        for (let j = 0; j < treasureCount; j++) {
+          // Try to find a position in this room
+          let treasureX = itemX;
+          let treasureY = itemY;
+          if (j > 0) {
+            // For additional items, find new position in same room
+            let treasureAttempts = 0;
+            while (treasureAttempts < 50) {
+              treasureX = Phaser.Math.Between(itemRoom.x, itemRoom.x + itemRoom.width - 1);
+              treasureY = Phaser.Math.Between(itemRoom.y, itemRoom.y + itemRoom.height - 1);
+
+              const treasureOccupied = (treasureX === this.player.gridX && treasureY === this.player.gridY) ||
+                                       this.enemies.some(e => e.gridX === treasureX && e.gridY === treasureY) ||
+                                       this.worldItems.some(item => item.gridX === treasureX && item.gridY === treasureY);
+
+              if (this.map[treasureY][treasureX] === 0 && !treasureOccupied) {
+                break;
+              }
+              treasureAttempts++;
+            }
+          }
+
+          // 70% chance of health/buff potions in treasure rooms
+          let treasureItemType: ItemType;
+          if (Math.random() < 0.7) {
+            const healthBuffTypes = [
+              ItemType.HEALTH_POTION,
+              ItemType.STRENGTH_POTION,
+              ItemType.DEFENSE_POTION
+            ];
+            treasureItemType = healthBuffTypes[Math.floor(Math.random() * healthBuffTypes.length)];
+          } else {
+            treasureItemType = ItemDatabase.getRandomItemType();
+          }
+
+          const treasureItem = new WorldItemEntity(this, treasureX, treasureY, treasureItemType);
+          treasureItem.updateSpritePosition(this.gridManager);
+          this.worldItems.push(treasureItem);
+        }
+      } else if (itemRoom && itemRoom.type === RoomType.CHALLENGE) {
+        // CHALLENGE room: spawn throwable items (bombs)
+        const bombTypes = [ItemType.POISON_BOMB, ItemType.FIRE_BOMB];
+        const bombType = bombTypes[Math.floor(Math.random() * bombTypes.length)];
+        const challengeItem = new WorldItemEntity(this, itemX, itemY, bombType);
+        challengeItem.updateSpritePosition(this.gridManager);
+        this.worldItems.push(challengeItem);
+      } else {
+        // Normal rooms: random item type
+        const itemType = ItemDatabase.getRandomItemType();
+        const worldItem = new WorldItemEntity(this, itemX, itemY, itemType);
+        worldItem.updateSpritePosition(this.gridManager);
+        this.worldItems.push(worldItem);
+      }
     }
 
     // Setup keyboard input
