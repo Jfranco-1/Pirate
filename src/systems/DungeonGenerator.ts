@@ -1,4 +1,4 @@
-import ROT from 'rot-js';
+import * as ROT from 'rot-js';
 import { RoomData, RoomType, RoomTheme } from '../types';
 import { ConnectivityValidator } from './ConnectivityValidator';
 
