@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { HubScene } from './scenes/HubScene';
 import { GameScene } from './scenes/GameScene';
 
 const config: Phaser.Types.Core.GameConfig = {
@@ -7,7 +8,7 @@ const config: Phaser.Types.Core.GameConfig = {
   height: 600,
   parent: 'game',
   backgroundColor: '#000000',
-  scene: [GameScene],
+  scene: [HubScene, GameScene],
   pixelArt: true
 };
 

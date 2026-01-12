@@ -19,7 +19,6 @@ import { InventoryUI } from '../ui/InventoryUI';
 import { DungeonGenerator } from '../systems/DungeonGenerator';
 import { CharacterClass, ItemType, ItemCategory, GameState, RoomData, RoomType } from '../types';
 import { MetaProgressionManager } from '../systems/MetaProgressionManager';
-import { MetaProgressionUI } from '../ui/MetaProgressionUI';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -35,6 +34,7 @@ export class GameScene extends Phaser.Scene {
   private gameOverText: Phaser.GameObjects.Text | null = null;
   private playerStatusPanel: Phaser.GameObjects.Graphics | null = null;
   private playerStatusText: Phaser.GameObjects.Text | null = null;
+  private runCounterText: Phaser.GameObjects.Text | null = null;
   private combatLog: CombatLog | null = null;
   private turnIndicator: TurnIndicator | null = null;
   private soundManager: SoundManager | null = null;
@@ -43,23 +43,12 @@ export class GameScene extends Phaser.Scene {
   private inventoryUI: InventoryUI | null = null;
   private gameState: GameState = GameState.NORMAL;
   private meta: MetaProgressionManager | null = null;
-  private metaUI: MetaProgressionUI | null = null;
-  private metaKeys: {
-    M?: Phaser.Input.Keyboard.Key;
-    H?: Phaser.Input.Keyboard.Key;
-    J?: Phaser.Input.Keyboard.Key;
-    K?: Phaser.Input.Keyboard.Key;
-    U?: Phaser.Input.Keyboard.Key;
-    O?: Phaser.Input.Keyboard.Key;
-    P?: Phaser.Input.Keyboard.Key;
-    Z?: Phaser.Input.Keyboard.Key;
-    X?: Phaser.Input.Keyboard.Key;
-    L?: Phaser.Input.Keyboard.Key;
-    R?: Phaser.Input.Keyboard.Key;
-  } = {};
+  private returnKey: Phaser.Input.Keyboard.Key | null = null;
   private runFinalized: boolean = false;
   private runKills: number = 0;
   private runCurrencyEarned: number = 0;
+  private runComplete: boolean = false;
+  private endScreenPanel: Phaser.GameObjects.Graphics | null = null;
   // Targeting system properties
   private targetingSlotIndex: number = -1;
   private targetingItemType: ItemType | null = null;
@@ -128,9 +117,10 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Create player
+    // Create player with class-specific color
     const startingStats = this.meta.getStartingPlayerStats();
-    this.player = new Player(this, startX, startY, startingStats);
+    const playerColor = this.getClassColor(this.meta.getSelectedClass());
+    this.player = new Player(this, startX, startY, startingStats, playerColor);
     this.player.updateSpritePosition(this.gridManager);
 
     // Setup status effect callbacks for player
@@ -416,20 +406,8 @@ export class GameScene extends Phaser.Scene {
         this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE)
       ];
 
-      // Meta-progression debug keys
-      this.metaKeys = {
-        M: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M),
-        H: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H),
-        J: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J),
-        K: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K),
-        U: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.U),
-        O: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.O),
-        P: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P),
-        Z: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z),
-        X: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X),
-        L: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L),
-        R: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
-      };
+      // Return to hub key
+      this.returnKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     }
 
     // Create player status panel (top-left UI)
@@ -446,6 +424,14 @@ export class GameScene extends Phaser.Scene {
       fontStyle: 'bold'
     });
     this.playerStatusText.setDepth(501);
+
+    // Run counter (show which run this is)
+    const runNumber = this.meta.getLifetime().runsStarted;
+    this.runCounterText = this.add.text(20, 75, `Run #${runNumber}`, {
+      fontSize: '12px',
+      color: '#888888'
+    });
+    this.runCounterText.setDepth(501);
 
     // Create combat log (bottom-right)
     this.combatLog = new CombatLog(this, 590, 480, 200, 110);
@@ -470,11 +456,6 @@ export class GameScene extends Phaser.Scene {
 
     // Create sound manager
     this.soundManager = new SoundManager();
-
-    // Meta UI (top-right)
-    if (this.meta) {
-      this.metaUI = new MetaProgressionUI(this, 530, 10, this.meta);
-    }
   }
 
   private renderMap(): void {
@@ -507,9 +488,6 @@ export class GameScene extends Phaser.Scene {
   update(): void {
     if (!this.player || !this.cursors || !this.turnManager) return;
 
-    // Handle meta UI keys (always available)
-    this.handleMetaInputs();
-
     // Update player status panel
     if (this.playerStatusText && this.player) {
       this.playerStatusText.setText(
@@ -519,24 +497,25 @@ export class GameScene extends Phaser.Scene {
       );
     }
 
-    // Check if player is dead
-    if (!this.player.isAlive()) {
-      if (!this.runFinalized && this.meta) {
-        this.runFinalized = true;
-        this.meta.markRunEnded();
-      }
-      if (!this.gameOverText) {
-        this.gameOverText = this.add.text(
-          400, 300,
-          `Game Over\nKills: ${this.runKills}  +${this.runCurrencyEarned} currency\nPress R to restart`,
-          { fontSize: '48px', color: '#ff0000' }
-        ).setOrigin(0.5);
-      }
-      // Allow restart after death
-      if (this.metaKeys.R && Phaser.Input.Keyboard.JustDown(this.metaKeys.R)) {
-        this.scene.restart();
+    // Check if run is complete (death or victory)
+    if (this.runComplete) {
+      // Return to hub
+      if (this.returnKey && Phaser.Input.Keyboard.JustDown(this.returnKey)) {
+        this.scene.start('HubScene');
       }
       return; // Stop accepting input
+    }
+
+    // Check if player is dead
+    if (!this.player.isAlive()) {
+      this.showEndScreen(false);
+      return;
+    }
+
+    // Check victory (all enemies killed)
+    if (this.enemies.length === 0 && !this.runComplete) {
+      this.showEndScreen(true);
+      return;
     }
 
     // Only allow input during player turn
@@ -1182,6 +1161,92 @@ export class GameScene extends Phaser.Scene {
     return 'Enemy';
   }
 
+  private getClassColor(cls: CharacterClass): number {
+    switch (cls) {
+      case CharacterClass.WARRIOR:
+        return 0x00ff00; // Green
+      case CharacterClass.ROGUE:
+        return 0xffff00; // Yellow
+      case CharacterClass.GUARDIAN:
+        return 0x0088ff; // Blue
+      default:
+        return 0x00ff00;
+    }
+  }
+
+  /**
+   * Show end screen (death or victory)
+   */
+  private showEndScreen(victory: boolean): void {
+    if (this.runComplete) return;
+    this.runComplete = true;
+
+    // Finalize run
+    if (this.meta && !this.runFinalized) {
+      this.runFinalized = true;
+      this.meta.markRunEnded();
+
+      // Victory bonus
+      if (victory) {
+        const bonus = 10;
+        this.meta.addCurrency(bonus);
+        this.runCurrencyEarned += bonus;
+      }
+    }
+
+    // Create panel background
+    this.endScreenPanel = this.add.graphics();
+    this.endScreenPanel.setDepth(700);
+    this.endScreenPanel.fillStyle(0x000000, 0.85);
+    this.endScreenPanel.fillRoundedRect(200, 150, 400, 300, 16);
+    this.endScreenPanel.lineStyle(3, victory ? 0x00ff00 : 0xff0000);
+    this.endScreenPanel.strokeRoundedRect(200, 150, 400, 300, 16);
+
+    // Title
+    const title = victory ? 'DUNGEON CLEARED!' : 'RUN ENDED';
+    const titleColor = victory ? '#00ff00' : '#ff0000';
+    this.add.text(400, 190, title, {
+      fontSize: '32px',
+      color: titleColor,
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(701);
+
+    // Class played
+    const className = this.meta ? this.meta.getClassName(this.meta.getSelectedClass()) : 'Unknown';
+    this.add.text(400, 240, `Class: ${className}`, {
+      fontSize: '18px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setDepth(701);
+
+    // Stats
+    this.add.text(400, 280, `Enemies Killed: ${this.runKills}`, {
+      fontSize: '18px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setDepth(701);
+
+    // Currency earned
+    const bonusText = victory ? ' (+10 bonus)' : '';
+    this.add.text(400, 320, `Currency Earned: +${this.runCurrencyEarned}${bonusText}`, {
+      fontSize: '18px',
+      color: '#ffcc00'
+    }).setOrigin(0.5).setDepth(701);
+
+    // Return instruction
+    this.add.text(400, 400, 'Press R to return to hub', {
+      fontSize: '16px',
+      color: '#888888'
+    }).setOrigin(0.5).setDepth(701);
+
+    // Fade in animation
+    this.endScreenPanel.setAlpha(0);
+    this.tweens.add({
+      targets: this.endScreenPanel,
+      alpha: 1,
+      duration: 300,
+      ease: 'Power2'
+    });
+  }
+
   private awardMetaForEnemy(enemy: Enemy): void {
     if (!this.meta) return;
     let reward = 1;
@@ -1193,68 +1258,6 @@ export class GameScene extends Phaser.Scene {
     this.meta.recordEnemyKill();
     this.runKills += 1;
     this.runCurrencyEarned += reward;
-    if (this.metaUI) {
-      this.metaUI.refresh();
-    }
-  }
-
-  private handleMetaInputs(): void {
-    if (!this.meta) return;
-
-    if (this.metaKeys.M && Phaser.Input.Keyboard.JustDown(this.metaKeys.M)) {
-      if (this.metaUI) this.metaUI.toggle();
-    }
-
-    if (this.metaKeys.H && Phaser.Input.Keyboard.JustDown(this.metaKeys.H)) {
-      this.meta.purchaseUpgrade('MAX_HP');
-      if (this.metaUI) this.metaUI.refresh();
-    }
-    if (this.metaKeys.J && Phaser.Input.Keyboard.JustDown(this.metaKeys.J)) {
-      this.meta.purchaseUpgrade('ATTACK');
-      if (this.metaUI) this.metaUI.refresh();
-    }
-    if (this.metaKeys.K && Phaser.Input.Keyboard.JustDown(this.metaKeys.K)) {
-      this.meta.purchaseUpgrade('DEFENSE');
-      if (this.metaUI) this.metaUI.refresh();
-    }
-
-    if (this.metaKeys.U && Phaser.Input.Keyboard.JustDown(this.metaKeys.U)) {
-      this.meta.unlockItem(ItemType.FIRE_BOMB, 25);
-      if (this.metaUI) this.metaUI.refresh();
-    }
-    if (this.metaKeys.O && Phaser.Input.Keyboard.JustDown(this.metaKeys.O)) {
-      this.meta.unlockClass(CharacterClass.ROGUE, 50);
-      if (this.metaUI) this.metaUI.refresh();
-    }
-    if (this.metaKeys.P && Phaser.Input.Keyboard.JustDown(this.metaKeys.P)) {
-      this.meta.unlockClass(CharacterClass.GUARDIAN, 50);
-      if (this.metaUI) this.metaUI.refresh();
-    }
-
-    if (this.metaKeys.Z && Phaser.Input.Keyboard.JustDown(this.metaKeys.Z)) {
-      this.cycleSelectedClass(-1);
-      if (this.metaUI) this.metaUI.refresh();
-    }
-    if (this.metaKeys.X && Phaser.Input.Keyboard.JustDown(this.metaKeys.X)) {
-      this.cycleSelectedClass(1);
-      if (this.metaUI) this.metaUI.refresh();
-    }
-
-    if (this.metaKeys.L && Phaser.Input.Keyboard.JustDown(this.metaKeys.L)) {
-      this.meta.resetSave();
-      if (this.metaUI) this.metaUI.refresh();
-    }
-  }
-
-  private cycleSelectedClass(direction: -1 | 1): void {
-    if (!this.meta) return;
-    const unlocked = this.meta.getUnlockedClasses();
-    if (unlocked.length === 0) return;
-    const current = this.meta.getSelectedClass();
-    const idx = unlocked.indexOf(current);
-    const start = idx === -1 ? 0 : idx;
-    const next = (start + direction + unlocked.length) % unlocked.length;
-    this.meta.setSelectedClass(unlocked[next]);
   }
 
   /**

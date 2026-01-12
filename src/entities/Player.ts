@@ -16,7 +16,7 @@ export class Player implements CombatEntity {
   public statusManager: StatusEffectManager;
   private statusIcons: Map<StatusEffectType, StatusIcon> = new Map();
 
-  constructor(scene: Phaser.Scene, gridX: number, gridY: number, startingStats?: CombatStats) {
+  constructor(scene: Phaser.Scene, gridX: number, gridY: number, startingStats?: CombatStats, color: number = 0x00ff00) {
     this.scene = scene;
     this.gridX = gridX;
     this.gridY = gridY;
@@ -29,9 +29,9 @@ export class Player implements CombatEntity {
       defense: 2
     };
 
-    // Create sprite with entity texture (green for player)
+    // Create sprite with entity texture (color based on class)
     this.sprite = scene.add.sprite(0, 0, 'entity');
-    this.sprite.setTint(0x00ff00); // Green for visibility
+    this.sprite.setTint(color);
 
     // Create health bar
     this.healthBar = new HealthBar(scene, this.stats.maxHP, this.stats.currentHP);
