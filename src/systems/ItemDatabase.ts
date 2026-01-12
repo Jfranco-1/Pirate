@@ -86,4 +86,18 @@ export class ItemDatabase {
     const index = Math.floor(Math.random() * types.length);
     return types[index];
   }
+
+  /**
+   * Get random item type with optional unlock gating.
+   * If the filter would exclude all items, falls back to any item.
+   */
+  static getRandomItemTypeWithFilter(isAllowed?: (type: ItemType) => boolean): ItemType {
+    const all = Array.from(this.items.keys());
+    if (!isAllowed) {
+      return all[Math.floor(Math.random() * all.length)];
+    }
+    const filtered = all.filter(isAllowed);
+    const pool = filtered.length ? filtered : all;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
 }

@@ -142,3 +142,32 @@ export interface RoomData {
   difficulty: number;     // 1-5 difficulty rating
   connections: number[];  // Indices of connected rooms
 }
+
+// --- Meta-progression ---
+
+// Playable character classes (persistent unlocks)
+export enum CharacterClass {
+  WARRIOR,
+  ROGUE,
+  GUARDIAN
+}
+
+// Persistent upgrade identifiers
+export type MetaUpgradeId = 'MAX_HP' | 'ATTACK' | 'DEFENSE';
+
+export interface MetaLifetimeStats {
+  runsStarted: number;
+  runsEnded: number;
+  enemiesKilled: number;
+  currencyEarned: number;
+}
+
+export interface MetaSaveData {
+  version: number;
+  currency: number;
+  upgrades: Record<MetaUpgradeId, number>;
+  unlockedItems: ItemType[];
+  unlockedClasses: CharacterClass[];
+  selectedClass: CharacterClass;
+  lifetime: MetaLifetimeStats;
+}
