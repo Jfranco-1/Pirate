@@ -17,7 +17,7 @@ import { ItemDatabase } from '../systems/ItemDatabase';
 import { InventoryManager } from '../systems/InventoryManager';
 import { InventoryUI } from '../ui/InventoryUI';
 import { DungeonGenerator } from '../systems/DungeonGenerator';
-import { ItemType, ItemCategory, GameState, RoomData } from '../types';
+import { ItemType, ItemCategory, GameState, RoomData, RoomType } from '../types';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -161,10 +161,28 @@ export class GameScene extends Phaser.Scene {
         attempts++;
       }
 
-      // Randomly choose enemy type
-      const enemyType = Phaser.Math.Between(0, 2);
-      let enemy: Enemy;
+      // Find which room this position belongs to
+      const room = this.rooms.find(r =>
+        enemyX >= r.x && enemyX < r.x + r.width &&
+        enemyY >= r.y && enemyY < r.y + r.height
+      );
 
+      // Skip enemy spawning in START and TREASURE rooms (safe zones)
+      if (room && (room.type === RoomType.START || room.type === RoomType.TREASURE)) {
+        continue;
+      }
+
+      // Determine enemy type based on room type
+      let enemyType: number;
+      if (room && room.type === RoomType.BOSS) {
+        // Boss room: 70% chance of Brute
+        enemyType = Math.random() < 0.7 ? 2 : Phaser.Math.Between(0, 2);
+      } else {
+        // Normal rooms: random enemy type
+        enemyType = Phaser.Math.Between(0, 2);
+      }
+
+      let enemy: Enemy;
       if (enemyType === 0) {
         enemy = new Goblin(this, enemyX, enemyY);
       } else if (enemyType === 1) {
@@ -174,6 +192,58 @@ export class GameScene extends Phaser.Scene {
       }
 
       enemy.updateSpritePosition(this.gridManager);
+
+      // For CHALLENGE rooms, try to spawn an additional enemy
+      if (room && room.type === RoomType.CHALLENGE && Math.random() < 0.5) {
+        // Find another position in the same room
+        let challengeX = 0;
+        let challengeY = 0;
+        let challengeAttempts = 0;
+        while (challengeAttempts < 50) {
+          challengeX = Phaser.Math.Between(room.x, room.x + room.width - 1);
+          challengeY = Phaser.Math.Between(room.y, room.y + room.height - 1);
+
+          // Check if floor tile and not occupied
+          if (this.map[challengeY][challengeX] === 0 &&
+              (challengeX !== this.player.gridX || challengeY !== this.player.gridY) &&
+              (challengeX !== enemyX || challengeY !== enemyY)) {
+            // Create second enemy for challenge room
+            const challengeType = Phaser.Math.Between(0, 2);
+            let challengeEnemy: Enemy;
+            if (challengeType === 0) {
+              challengeEnemy = new Goblin(this, challengeX, challengeY);
+            } else if (challengeType === 1) {
+              challengeEnemy = new Archer(this, challengeX, challengeY);
+            } else {
+              challengeEnemy = new Brute(this, challengeX, challengeY);
+            }
+            challengeEnemy.updateSpritePosition(this.gridManager);
+
+            // Setup status callbacks for challenge enemy
+            challengeEnemy.statusManager.onDamage = (damage: number) => {
+              FloatingText.create(
+                this,
+                challengeEnemy.sprite.x,
+                challengeEnemy.sprite.y - 30,
+                `-${damage}`,
+                '#ff6600'
+              );
+            };
+            challengeEnemy.statusManager.onHeal = (heal: number) => {
+              FloatingText.create(
+                this,
+                challengeEnemy.sprite.x,
+                challengeEnemy.sprite.y - 30,
+                `+${heal}`,
+                '#00ff00'
+              );
+            };
+            this.enemies.push(challengeEnemy);
+            break;
+          }
+          challengeAttempts++;
+        }
+      }
 
       // Setup status effect callbacks for enemy
       enemy.statusManager.onDamage = (damage: number) => {
