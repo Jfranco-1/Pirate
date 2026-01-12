@@ -18,7 +18,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation & Core Loop** - Basic game structure, grid-based movement, and turn system
 - [x] **Phase 2: Combat & Enemies** - Tactical combat mechanics and enemy variety
-- [ ] **Phase 3: Procedural Generation** - Dungeon generation with varied layouts
+- [x] **Phase 3: Procedural Generation** - Dungeon generation with varied layouts
 - [ ] **Phase 4: Meta-Progression Systems** - Character unlocks, persistent upgrades, and item pool expansion
 - [ ] **Phase 5: Run Management** - Permadeath handling, run tracking, and progression visibility
 
@@ -57,9 +57,9 @@ Plans:
 **Plans**: 2-3 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [x] 03-01: Room Metadata System (completed 2026-01-12)
+- [x] 03-02: Connectivity Validation (completed 2026-01-12)
+- [x] 03-03: Special Room Placement (completed 2026-01-12)
 
 ### Phase 4: Meta-Progression Systems
 **Goal**: Implement character unlocks, persistent upgrades, and expanding item pool
@@ -69,9 +69,9 @@ Plans:
 **Plans**: 2-3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
-- [ ] 04-03: TBD
+- [ ] 04-01: Persistence & Currency Foundation
+- [ ] 04-02: Permanent Upgrades
+- [ ] 04-03: Character Classes & Unlocks
 
 ### Phase 5: Run Management
 **Goal**: Complete permadeath system, run tracking, and progression visibility
@@ -93,5 +93,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation & Core Loop | 3/3 | Complete ✅ | 2026-01-09 |
 | 2. Combat & Enemies | 4/4 | Complete ✅ | 2026-01-11 |
 | 3. Procedural Generation | 3/3 | Complete ✅ | 2026-01-12 |
-| 4. Meta-Progression Systems | 0/3 | Not started | - |
+| 4. Meta-Progression Systems | 0/3 | In Progress | - |
 | 5. Run Management | 0/2 | Not started | - |
