@@ -16,13 +16,13 @@ export class Player implements CombatEntity {
   public statusManager: StatusEffectManager;
   private statusIcons: Map<StatusEffectType, StatusIcon> = new Map();
 
-  constructor(scene: Phaser.Scene, gridX: number, gridY: number) {
+  constructor(scene: Phaser.Scene, gridX: number, gridY: number, startingStats?: CombatStats) {
     this.scene = scene;
     this.gridX = gridX;
     this.gridY = gridY;
 
-    // Initialize combat stats: 20 HP, 5 attack, 2 defense
-    this.stats = {
+    // Initialize combat stats (can be overridden by meta-progression/class selection)
+    this.stats = startingStats ?? {
       maxHP: 20,
       currentHP: 20,
       attack: 5,

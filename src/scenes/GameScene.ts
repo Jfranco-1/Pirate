@@ -17,7 +17,9 @@ import { ItemDatabase } from '../systems/ItemDatabase';
 import { InventoryManager } from '../systems/InventoryManager';
 import { InventoryUI } from '../ui/InventoryUI';
 import { DungeonGenerator } from '../systems/DungeonGenerator';
-import { ItemType, ItemCategory, GameState, RoomData, RoomType } from '../types';
+import { CharacterClass, ItemType, ItemCategory, GameState, RoomData, RoomType } from '../types';
+import { MetaProgressionManager } from '../systems/MetaProgressionManager';
+import { MetaProgressionUI } from '../ui/MetaProgressionUI';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -40,6 +42,24 @@ export class GameScene extends Phaser.Scene {
   private inventoryManager: InventoryManager | null = null;
   private inventoryUI: InventoryUI | null = null;
   private gameState: GameState = GameState.NORMAL;
+  private meta: MetaProgressionManager | null = null;
+  private metaUI: MetaProgressionUI | null = null;
+  private metaKeys: {
+    M?: Phaser.Input.Keyboard.Key;
+    H?: Phaser.Input.Keyboard.Key;
+    J?: Phaser.Input.Keyboard.Key;
+    K?: Phaser.Input.Keyboard.Key;
+    U?: Phaser.Input.Keyboard.Key;
+    O?: Phaser.Input.Keyboard.Key;
+    P?: Phaser.Input.Keyboard.Key;
+    Z?: Phaser.Input.Keyboard.Key;
+    X?: Phaser.Input.Keyboard.Key;
+    L?: Phaser.Input.Keyboard.Key;
+    R?: Phaser.Input.Keyboard.Key;
+  } = {};
+  private runFinalized: boolean = false;
+  private runKills: number = 0;
+  private runCurrencyEarned: number = 0;
   // Targeting system properties
   private targetingSlotIndex: number = -1;
   private targetingItemType: ItemType | null = null;
@@ -71,6 +91,10 @@ export class GameScene extends Phaser.Scene {
 
     // Initialize grid manager (25x18 tiles for 800x600 canvas)
     this.gridManager = new GridManager(25, 18);
+
+    // Initialize meta-progression (persistent) and mark run start
+    this.meta = MetaProgressionManager.getInstance();
+    this.meta.markRunStarted();
 
     // Generate dungeon with metadata extraction
     const dungeonGen = new DungeonGenerator();
@@ -105,7 +129,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Create player
-    this.player = new Player(this, startX, startY);
+    const startingStats = this.meta.getStartingPlayerStats();
+    this.player = new Player(this, startX, startY, startingStats);
     this.player.updateSpritePosition(this.gridManager);
 
     // Setup status effect callbacks for player
@@ -343,7 +368,9 @@ export class GameScene extends Phaser.Scene {
             ];
             treasureItemType = healthBuffTypes[Math.floor(Math.random() * healthBuffTypes.length)];
           } else {
-            treasureItemType = ItemDatabase.getRandomItemType();
+            treasureItemType = ItemDatabase.getRandomItemTypeWithFilter(
+              (t) => this.meta ? this.meta.isItemUnlocked(t) : true
+            );
           }
 
           const treasureItem = new WorldItemEntity(this, treasureX, treasureY, treasureItemType);
@@ -352,14 +379,18 @@ export class GameScene extends Phaser.Scene {
         }
       } else if (itemRoom && itemRoom.type === RoomType.CHALLENGE) {
         // CHALLENGE room: spawn throwable items (bombs)
-        const bombTypes = [ItemType.POISON_BOMB, ItemType.FIRE_BOMB];
-        const bombType = bombTypes[Math.floor(Math.random() * bombTypes.length)];
+        const bombTypes = [ItemType.POISON_BOMB, ItemType.FIRE_BOMB]
+          .filter(t => this.meta ? this.meta.isItemUnlocked(t) : true);
+        const bombPool = bombTypes.length ? bombTypes : [ItemType.POISON_BOMB];
+        const bombType = bombPool[Math.floor(Math.random() * bombPool.length)];
         const challengeItem = new WorldItemEntity(this, itemX, itemY, bombType);
         challengeItem.updateSpritePosition(this.gridManager);
         this.worldItems.push(challengeItem);
       } else {
         // Normal rooms: random item type
-        const itemType = ItemDatabase.getRandomItemType();
+        const itemType = ItemDatabase.getRandomItemTypeWithFilter(
+          (t) => this.meta ? this.meta.isItemUnlocked(t) : true
+        );
         const worldItem = new WorldItemEntity(this, itemX, itemY, itemType);
         worldItem.updateSpritePosition(this.gridManager);
         this.worldItems.push(worldItem);
@@ -384,6 +415,21 @@ export class GameScene extends Phaser.Scene {
         this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FOUR),
         this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.FIVE)
       ];
+
+      // Meta-progression debug keys
+      this.metaKeys = {
+        M: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M),
+        H: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.H),
+        J: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.J),
+        K: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.K),
+        U: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.U),
+        O: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.O),
+        P: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.P),
+        Z: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z),
+        X: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X),
+        L: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.L),
+        R: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R)
+      };
     }
 
     // Create player status panel (top-left UI)
@@ -424,6 +470,11 @@ export class GameScene extends Phaser.Scene {
 
     // Create sound manager
     this.soundManager = new SoundManager();
+
+    // Meta UI (top-right)
+    if (this.meta) {
+      this.metaUI = new MetaProgressionUI(this, 530, 10, this.meta);
+    }
   }
 
   private renderMap(): void {
@@ -456,6 +507,9 @@ export class GameScene extends Phaser.Scene {
   update(): void {
     if (!this.player || !this.cursors || !this.turnManager) return;
 
+    // Handle meta UI keys (always available)
+    this.handleMetaInputs();
+
     // Update player status panel
     if (this.playerStatusText && this.player) {
       this.playerStatusText.setText(
@@ -467,12 +521,20 @@ export class GameScene extends Phaser.Scene {
 
     // Check if player is dead
     if (!this.player.isAlive()) {
+      if (!this.runFinalized && this.meta) {
+        this.runFinalized = true;
+        this.meta.markRunEnded();
+      }
       if (!this.gameOverText) {
         this.gameOverText = this.add.text(
           400, 300,
-          'Game Over',
+          `Game Over\nKills: ${this.runKills}  +${this.runCurrencyEarned} currency\nPress R to restart`,
           { fontSize: '48px', color: '#ff0000' }
         ).setOrigin(0.5);
+      }
+      // Allow restart after death
+      if (this.metaKeys.R && Phaser.Input.Keyboard.JustDown(this.metaKeys.R)) {
+        this.scene.restart();
       }
       return; // Stop accepting input
     }
@@ -548,6 +610,8 @@ export class GameScene extends Phaser.Scene {
     if (playerMoved) {
       // Track player HP before enemy turn
       const playerHPBefore = this.player.stats.currentHP;
+      const playerXBefore = this.player.sprite.x;
+      const playerYBefore = this.player.sprite.y;
 
       // Manually switch turn indicator to enemy turn
       if (this.turnIndicator) {
@@ -580,13 +644,13 @@ export class GameScene extends Phaser.Scene {
           }
 
           // Visual effects
-          ParticleSystem.createHitSparks(this, this.player.sprite.x, this.player.sprite.y);
-          ParticleSystem.createBloodBurst(this, this.player.sprite.x, this.player.sprite.y, damageTaken / 5);
+          ParticleSystem.createHitSparks(this, playerXBefore, playerYBefore);
+          ParticleSystem.createBloodBurst(this, playerXBefore, playerYBefore, damageTaken / 5);
 
           FloatingText.create(
             this,
-            this.player.sprite.x,
-            this.player.sprite.y - 30,
+            playerXBefore,
+            playerYBefore - 30,
             `-${damageTaken}`,
             '#ff0000' // Red for player damage
           );
@@ -613,6 +677,7 @@ export class GameScene extends Phaser.Scene {
             if (this.combatLog) {
               this.combatLog.addEntry(`${enemyName} defeated!`);
             }
+            this.awardMetaForEnemy(enemy);
             enemy.sprite.destroy();
             this.enemies.splice(i, 1);
           }
@@ -992,6 +1057,8 @@ export class GameScene extends Phaser.Scene {
       if (!this.player || !this.turnManager) return;
 
       const playerHPBefore = this.player.stats.currentHP;
+      const playerXBefore = this.player.sprite.x;
+      const playerYBefore = this.player.sprite.y;
 
       if (this.turnIndicator) {
         this.turnIndicator.setEnemyTurn();
@@ -1018,13 +1085,13 @@ export class GameScene extends Phaser.Scene {
             }
           }
 
-          ParticleSystem.createHitSparks(this, this.player.sprite.x, this.player.sprite.y);
-          ParticleSystem.createBloodBurst(this, this.player.sprite.x, this.player.sprite.y, damageTaken / 5);
+          ParticleSystem.createHitSparks(this, playerXBefore, playerYBefore);
+          ParticleSystem.createBloodBurst(this, playerXBefore, playerYBefore, damageTaken / 5);
 
           FloatingText.create(
             this,
-            this.player.sprite.x,
-            this.player.sprite.y - 30,
+            playerXBefore,
+            playerYBefore - 30,
             `-${damageTaken}`,
             '#ff0000'
           );
@@ -1049,6 +1116,7 @@ export class GameScene extends Phaser.Scene {
             if (this.combatLog) {
               this.combatLog.addEntry(`${enemyName} defeated!`);
             }
+            this.awardMetaForEnemy(enemy);
             enemy.sprite.destroy();
             this.enemies.splice(i, 1);
           }
@@ -1112,6 +1180,81 @@ export class GameScene extends Phaser.Scene {
     if (enemy instanceof Archer) return 'Archer';
     if (enemy instanceof Brute) return 'Brute';
     return 'Enemy';
+  }
+
+  private awardMetaForEnemy(enemy: Enemy): void {
+    if (!this.meta) return;
+    let reward = 1;
+    if (enemy instanceof Goblin) reward = 2;
+    else if (enemy instanceof Archer) reward = 3;
+    else if (enemy instanceof Brute) reward = 5;
+
+    this.meta.addCurrency(reward);
+    this.meta.recordEnemyKill();
+    this.runKills += 1;
+    this.runCurrencyEarned += reward;
+    if (this.metaUI) {
+      this.metaUI.refresh();
+    }
+  }
+
+  private handleMetaInputs(): void {
+    if (!this.meta) return;
+
+    if (this.metaKeys.M && Phaser.Input.Keyboard.JustDown(this.metaKeys.M)) {
+      if (this.metaUI) this.metaUI.toggle();
+    }
+
+    if (this.metaKeys.H && Phaser.Input.Keyboard.JustDown(this.metaKeys.H)) {
+      this.meta.purchaseUpgrade('MAX_HP');
+      if (this.metaUI) this.metaUI.refresh();
+    }
+    if (this.metaKeys.J && Phaser.Input.Keyboard.JustDown(this.metaKeys.J)) {
+      this.meta.purchaseUpgrade('ATTACK');
+      if (this.metaUI) this.metaUI.refresh();
+    }
+    if (this.metaKeys.K && Phaser.Input.Keyboard.JustDown(this.metaKeys.K)) {
+      this.meta.purchaseUpgrade('DEFENSE');
+      if (this.metaUI) this.metaUI.refresh();
+    }
+
+    if (this.metaKeys.U && Phaser.Input.Keyboard.JustDown(this.metaKeys.U)) {
+      this.meta.unlockItem(ItemType.FIRE_BOMB, 25);
+      if (this.metaUI) this.metaUI.refresh();
+    }
+    if (this.metaKeys.O && Phaser.Input.Keyboard.JustDown(this.metaKeys.O)) {
+      this.meta.unlockClass(CharacterClass.ROGUE, 50);
+      if (this.metaUI) this.metaUI.refresh();
+    }
+    if (this.metaKeys.P && Phaser.Input.Keyboard.JustDown(this.metaKeys.P)) {
+      this.meta.unlockClass(CharacterClass.GUARDIAN, 50);
+      if (this.metaUI) this.metaUI.refresh();
+    }
+
+    if (this.metaKeys.Z && Phaser.Input.Keyboard.JustDown(this.metaKeys.Z)) {
+      this.cycleSelectedClass(-1);
+      if (this.metaUI) this.metaUI.refresh();
+    }
+    if (this.metaKeys.X && Phaser.Input.Keyboard.JustDown(this.metaKeys.X)) {
+      this.cycleSelectedClass(1);
+      if (this.metaUI) this.metaUI.refresh();
+    }
+
+    if (this.metaKeys.L && Phaser.Input.Keyboard.JustDown(this.metaKeys.L)) {
+      this.meta.resetSave();
+      if (this.metaUI) this.metaUI.refresh();
+    }
+  }
+
+  private cycleSelectedClass(direction: -1 | 1): void {
+    if (!this.meta) return;
+    const unlocked = this.meta.getUnlockedClasses();
+    if (unlocked.length === 0) return;
+    const current = this.meta.getSelectedClass();
+    const idx = unlocked.indexOf(current);
+    const start = idx === -1 ? 0 : idx;
+    const next = (start + direction + unlocked.length) % unlocked.length;
+    this.meta.setSelectedClass(unlocked[next]);
   }
 
   /**
