@@ -56,9 +56,8 @@ export class DungeonGenerator {
       const roomWidth = right - left + 1;
       const roomHeight = bottom - top + 1;
 
-      // Assign room type (first room = START, rest = NORMAL for now)
-      // Boss/treasure/challenge assignment happens in plan 03-03
-      const roomType = index === 0 ? RoomType.START : RoomType.NORMAL;
+      // Room type will be assigned by assignRoomTypes() method
+      const roomType = RoomType.NORMAL;
 
       // Assign random theme for visual variety
       const themes = [RoomTheme.DUNGEON, RoomTheme.CAVE, RoomTheme.CRYPT, RoomTheme.LIBRARY];
@@ -80,6 +79,79 @@ export class DungeonGenerator {
       };
     });
 
+    // Assign room types using pathfinding distance
+    this.assignRoomTypes(map, rooms, width);
+
     return { map, rooms };
+  }
+
+  /**
+   * Assign special room types based on pathfinding distance and weighted randomness
+   * @param map - Dungeon map for pathfinding
+   * @param rooms - Room metadata array to update
+   * @param width - Map width for coordinate calculations
+   */
+  private assignRoomTypes(map: number[][], rooms: RoomData[], width: number): void {
+    if (rooms.length === 0) return;
+
+    // Set first room as START
+    rooms[0].type = RoomType.START;
+
+    // Calculate pathfinding distance from start room to all other rooms
+    const startRoom = rooms[0];
+    const startX = Math.floor(startRoom.x + startRoom.width / 2);
+    const startY = Math.floor(startRoom.y + startRoom.height / 2);
+
+    let maxDistance = 0;
+    let bossRoomIndex = -1;
+
+    // Find room with maximum path distance from start
+    for (let i = 1; i < rooms.length; i++) {
+      const room = rooms[i];
+      const roomCenterX = Math.floor(room.x + room.width / 2);
+      const roomCenterY = Math.floor(room.y + room.height / 2);
+
+      // Calculate path distance using ROT.Path.AStar
+      const astar = new ROT.Path.AStar(roomCenterX, roomCenterY, (x, y) => {
+        // Passable if within bounds and is floor tile
+        if (y < 0 || y >= map.length || x < 0 || x >= map[0].length) {
+          return false;
+        }
+        return map[y][x] === 0;
+      });
+
+      let pathLength = 0;
+      astar.compute(startX, startY, (x, y) => {
+        pathLength++;
+      });
+
+      if (pathLength > maxDistance) {
+        maxDistance = pathLength;
+        bossRoomIndex = i;
+      }
+    }
+
+    // Assign BOSS to furthest room
+    if (bossRoomIndex !== -1) {
+      rooms[bossRoomIndex].type = RoomType.BOSS;
+    }
+
+    // Assign TREASURE and CHALLENGE rooms with weighted randomness
+    for (let i = 1; i < rooms.length; i++) {
+      // Skip if already assigned (START or BOSS)
+      if (rooms[i].type !== RoomType.NORMAL) {
+        continue;
+      }
+
+      const rand = Math.random();
+      if (rand < 0.15) {
+        // 15% chance for TREASURE
+        rooms[i].type = RoomType.TREASURE;
+      } else if (rand < 0.25) {
+        // 10% chance for CHALLENGE (0.15 + 0.10 = 0.25)
+        rooms[i].type = RoomType.CHALLENGE;
+      }
+      // Remaining rooms stay NORMAL
+    }
   }
 }
