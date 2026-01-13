@@ -59,11 +59,51 @@ export class GameScene extends Phaser.Scene {
     super({ key: 'GameScene' });
   }
 
+  /**
+   * Reset all state when scene starts/restarts
+   */
+  init(): void {
+    // Reset all state for fresh run
+    this.map = [];
+    this.rooms = [];
+    this.player = null;
+    this.cursors = undefined;
+    this.wasdKeys = undefined;
+    this.numberKeys = [];
+    this.enemies = [];
+    this.turnManager = null;
+    this.gameOverText = null;
+    this.playerStatusPanel = null;
+    this.playerStatusText = null;
+    this.runCounterText = null;
+    this.combatLog = null;
+    this.turnIndicator = null;
+    this.soundManager = null;
+    this.worldItems = [];
+    this.inventoryManager = null;
+    this.inventoryUI = null;
+    this.gameState = GameState.NORMAL;
+    this.meta = null;
+    this.returnKey = null;
+    this.runFinalized = false;
+    this.runKills = 0;
+    this.runCurrencyEarned = 0;
+    this.runComplete = false;
+    this.endScreenPanel = null;
+    this.targetingSlotIndex = -1;
+    this.targetingItemType = null;
+    this.targetCursorSprite = null;
+    this.targetedEnemyIndex = 0;
+  }
+
   preload(): void {
     // No assets to load yet
   }
 
   create(): void {
+    // Remove any existing keyboard listeners from previous runs
+    this.input.keyboard?.removeAllKeys(true);
+
     // Create a simple white square texture that can be tinted
     const textureGraphics = this.add.graphics();
     textureGraphics.fillStyle(0xffffff);
