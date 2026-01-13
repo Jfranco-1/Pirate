@@ -17,8 +17,11 @@ import { ItemDatabase } from '../systems/ItemDatabase';
 import { InventoryManager } from '../systems/InventoryManager';
 import { InventoryUI } from '../ui/InventoryUI';
 import { DungeonGenerator } from '../systems/DungeonGenerator';
-import { CharacterClass, ItemType, ItemCategory, GameState, RoomData, RoomType } from '../types';
+import { CharacterClass, ItemType, ItemCategory, GameState, RoomData, RoomType, PirateClass } from '../types';
 import { MetaProgressionManager } from '../systems/MetaProgressionManager';
+import { SpriteGenerator } from '../systems/SpriteGenerator';
+import { SessionStateManager } from '../systems/SessionStateManager';
+import { CurseInsightPanel } from '../ui/CurseInsightPanel';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -54,6 +57,12 @@ export class GameScene extends Phaser.Scene {
   private targetingItemType: ItemType | null = null;
   private targetCursorSprite: Phaser.GameObjects.Sprite | null = null;
   private targetedEnemyIndex: number = 0;
+  
+  // Pirate theme systems
+  private spriteGenerator: SpriteGenerator | null = null;
+  private session: SessionStateManager | null = null;
+  private curseInsightPanel: CurseInsightPanel | null = null;
+  private tileSprites: Phaser.GameObjects.Sprite[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -94,29 +103,26 @@ export class GameScene extends Phaser.Scene {
     this.targetingItemType = null;
     this.targetCursorSprite = null;
     this.targetedEnemyIndex = 0;
+    
+    // Pirate systems
+    this.spriteGenerator = null;
+    this.session = null;
+    this.curseInsightPanel = null;
+    this.tileSprites = [];
   }
 
   preload(): void {
-    // No assets to load yet
+    // Sprites are generated programmatically in create()
   }
 
   create(): void {
     // Remove any existing keyboard listeners from previous runs
     this.input.keyboard?.removeAllKeys(true);
 
-    // Create a simple white square texture that can be tinted
-    const textureGraphics = this.add.graphics();
-    textureGraphics.fillStyle(0xffffff);
-    textureGraphics.fillRect(0, 0, 28, 28);
-    textureGraphics.generateTexture('entity', 28, 28);
-    textureGraphics.destroy();
-
-    // Create particle texture (small white circle)
-    const particleGraphics = this.add.graphics();
-    particleGraphics.fillStyle(0xffffff);
-    particleGraphics.fillCircle(2, 2, 2);
-    particleGraphics.generateTexture('particle', 4, 4);
-    particleGraphics.destroy();
+    // Generate all pirate-themed sprites
+    this.spriteGenerator = new SpriteGenerator(this);
+    this.spriteGenerator.generateAll();
+    this.spriteGenerator.generateEntityTexture();  // Fallback
 
     // Initialize grid manager (25x18 tiles for 800x600 canvas)
     this.gridManager = new GridManager(25, 18);
@@ -124,6 +130,17 @@ export class GameScene extends Phaser.Scene {
     // Initialize meta-progression (persistent) and mark run start
     this.meta = MetaProgressionManager.getInstance();
     this.meta.markRunStarted();
+    
+    // Initialize session state (per-run)
+    this.session = SessionStateManager.getInstance();
+    // Map old CharacterClass to PirateClass for now
+    const classMapping: Record<CharacterClass, PirateClass> = {
+      [CharacterClass.WARRIOR]: PirateClass.DUELIST,
+      [CharacterClass.ROGUE]: PirateClass.NAVIGATOR,
+      [CharacterClass.GUARDIAN]: PirateClass.QUARTERMASTER
+    };
+    const pirateClass = classMapping[this.meta.getSelectedClass()] || PirateClass.DUELIST;
+    this.session.startNewRun(pirateClass);
 
     // Generate dungeon with metadata extraction
     const dungeonGen = new DungeonGenerator();
@@ -479,6 +496,12 @@ export class GameScene extends Phaser.Scene {
 
     // Create turn indicator (top-center)
     this.turnIndicator = new TurnIndicator(this, 400, 20);
+    
+    // Create curse/insight panel (top-right)
+    this.curseInsightPanel = new CurseInsightPanel(this, 610, 95);
+    if (this.session) {
+      this.curseInsightPanel.update(this.session.getCurse(), this.session.getInsight());
+    }
 
     // Subscribe to turn change events
     this.turnManager.onTurnChange = (isPlayerTurn: boolean) => {
@@ -500,27 +523,81 @@ export class GameScene extends Phaser.Scene {
 
   private renderMap(): void {
     this.graphics.clear();
+    
+    // Clear old tile sprites
+    this.tileSprites.forEach(sprite => sprite.destroy());
+    this.tileSprites = [];
 
-    // Loop through map array and render tiles
+    // Loop through map array and render tiles with sprites
     for (let y = 0; y < this.map.length; y++) {
       for (let x = 0; x < this.map[y].length; x++) {
         const pixelPos = this.gridManager.gridToPixel({ x, y });
-        const pixelX = pixelPos.x - 16; // Center offset (32/2)
-        const pixelY = pixelPos.y - 16;
-
+        
+        // Determine tile texture based on type and room
+        let textureKey = 'tile_floor';
+        
         if (this.map[y][x] === 1) {
-          // Wall - gray
-          this.graphics.fillStyle(0x555555, 1);
+          textureKey = 'tile_wall';
         } else {
-          // Floor - dark gray
-          this.graphics.fillStyle(0x222222, 1);
+          // Check if this is a special room tile
+          const room = this.rooms.find(r =>
+            x >= r.x && x < r.x + r.width &&
+            y >= r.y && y < r.y + r.height
+          );
+          
+          if (room) {
+            // Special visuals for different room types
+            if (room.type === RoomType.TREASURE) {
+              // Treasure rooms have slightly golden tint
+              textureKey = 'tile_floor';
+            } else if (room.type === RoomType.BOSS) {
+              // Boss rooms - darker floor
+              textureKey = 'tile_floor';
+            }
+          }
         }
-
-        this.graphics.fillRect(pixelX, pixelY, 32, 32);
-
-        // Add 1px border
-        this.graphics.lineStyle(1, 0x000000);
-        this.graphics.strokeRect(pixelX, pixelY, 32, 32);
+        
+        // Create tile sprite
+        const tileSprite = this.add.sprite(pixelPos.x, pixelPos.y, textureKey);
+        tileSprite.setDepth(0);
+        
+        // Add room-based tinting
+        const room = this.rooms.find(r =>
+          x >= r.x && x < r.x + r.width &&
+          y >= r.y && y < r.y + r.height
+        );
+        
+        if (room && this.map[y][x] === 0) {
+          switch (room.type) {
+            case RoomType.START:
+              tileSprite.setTint(0x88aa88);  // Greenish safe zone
+              break;
+            case RoomType.TREASURE:
+              tileSprite.setTint(0xaaaa77);  // Golden
+              break;
+            case RoomType.BOSS:
+              tileSprite.setTint(0xaa6666);  // Reddish danger
+              break;
+            case RoomType.CHALLENGE:
+              tileSprite.setTint(0x8888aa);  // Bluish
+              break;
+          }
+        }
+        
+        this.tileSprites.push(tileSprite);
+      }
+    }
+    
+    // Add atmospheric overlay based on curse level
+    if (this.session) {
+      const curseStage = this.session.getCurse().getStage();
+      if (curseStage >= 3) {
+        // Add darkness/vignette effect at high curse
+        const vignette = this.add.graphics();
+        vignette.setDepth(5);
+        const alpha = (curseStage - 2) * 0.05;
+        vignette.fillStyle(0x330033, alpha);
+        vignette.fillRect(0, 0, 800, 600);
       }
     }
   }
@@ -535,6 +612,11 @@ export class GameScene extends Phaser.Scene {
         `ATK: ${this.player.stats.attack}\n` +
         `DEF: ${this.player.stats.defense}`
       );
+    }
+    
+    // Update curse/insight panel
+    if (this.curseInsightPanel && this.session) {
+      this.curseInsightPanel.update(this.session.getCurse(), this.session.getInsight());
     }
 
     // Check if run is complete (death or victory)
@@ -1298,6 +1380,16 @@ export class GameScene extends Phaser.Scene {
     this.meta.recordEnemyKill();
     this.runKills += 1;
     this.runCurrencyEarned += reward;
+    
+    // Track in session for curse manifestation
+    if (this.session) {
+      this.session.recordKill();
+      
+      // Combat gives small insight (you're learning about threats)
+      if (enemy instanceof Brute) {
+        this.session.getInsight().gain(2, 'Defeated powerful foe');
+      }
+    }
   }
 
   /**

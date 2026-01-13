@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { CharacterClass, ItemType, MetaUpgradeId } from '../types';
+import { CharacterClass, ItemType, MetaUpgradeId, PirateClass } from '../types';
 import { MetaProgressionManager } from '../systems/MetaProgressionManager';
+import { PIRATE_CLASSES } from '../systems/PirateClassSystem';
 
 /**
  * HubScene - Pre-run menu for meta-progression
@@ -23,33 +24,49 @@ export class HubScene extends Phaser.Scene {
   create(): void {
     this.meta = MetaProgressionManager.getInstance();
 
-    // Dark background
+    // Dark ocean-themed background
     const bg = this.add.graphics();
-    bg.fillStyle(0x111111, 1);
+    bg.fillStyle(0x0a1520, 1);
     bg.fillRect(0, 0, 800, 600);
+    
+    // Wave pattern at bottom
+    bg.fillStyle(0x0d1a28, 1);
+    for (let x = 0; x < 800; x += 40) {
+      bg.fillRect(x, 560, 35, 40);
+    }
+    bg.fillStyle(0x102030, 1);
+    for (let x = 20; x < 800; x += 40) {
+      bg.fillRect(x, 570, 35, 30);
+    }
 
-    // Title
-    this.add.text(400, 30, 'METRIC', {
-      fontSize: '48px',
-      color: '#ffffff',
+    // Title with pirate theme
+    this.add.text(400, 25, '⚓ SEEKERS OF THE', {
+      fontSize: '20px',
+      color: '#668899',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    
+    this.add.text(400, 55, 'DROWNED SEAL', {
+      fontSize: '42px',
+      color: '#88ccff',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // Subtitle
-    this.add.text(400, 70, 'Tactical Dungeon Crawler', {
-      fontSize: '16px',
-      color: '#888888'
+    this.add.text(400, 95, 'Break the curse before the Blood Moon rises', {
+      fontSize: '14px',
+      color: '#556677'
     }).setOrigin(0.5);
 
-    // Currency display (top-right)
-    this.add.text(700, 20, 'Currency:', {
-      fontSize: '16px',
-      color: '#ffcc00'
+    // Currency display (top-right) - Doubloons!
+    this.add.text(700, 20, '🪙 Doubloons:', {
+      fontSize: '14px',
+      color: '#ddaa44'
     }).setOrigin(1, 0);
 
     this.currencyText = this.add.text(780, 20, '0', {
-      fontSize: '24px',
-      color: '#ffcc00',
+      fontSize: '22px',
+      color: '#ffcc44',
       fontStyle: 'bold'
     }).setOrigin(1, 0);
 
@@ -71,21 +88,43 @@ export class HubScene extends Phaser.Scene {
    */
   private createClassSelection(): void {
     // Section header
-    this.add.text(150, 110, 'SELECT CLASS', {
-      fontSize: '20px',
-      color: '#ffffff',
+    this.add.text(150, 115, '⚔️ CHOOSE YOUR PATH', {
+      fontSize: '16px',
+      color: '#aabbcc',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
+    // Map old classes to pirate theme with enhanced info
     const classes = [
-      { cls: CharacterClass.WARRIOR, name: 'Warrior', color: 0x00ff00, stats: { hp: 20, atk: 5, def: 2 } },
-      { cls: CharacterClass.ROGUE, name: 'Rogue', color: 0xffff00, stats: { hp: 16, atk: 7, def: 1 } },
-      { cls: CharacterClass.GUARDIAN, name: 'Guardian', color: 0x0088ff, stats: { hp: 24, atk: 4, def: 4 } }
+      { 
+        cls: CharacterClass.WARRIOR, 
+        name: 'Duelist', 
+        title: 'Blade of the Storm',
+        color: 0xff4444, 
+        stats: { hp: 18, atk: 7, def: 1 },
+        insight: '+0'
+      },
+      { 
+        cls: CharacterClass.ROGUE, 
+        name: 'Navigator', 
+        title: 'Reader of Winds',
+        color: 0x00aaff, 
+        stats: { hp: 16, atk: 4, def: 2 },
+        insight: '+10'
+      },
+      { 
+        cls: CharacterClass.GUARDIAN, 
+        name: 'Quartermaster', 
+        title: 'Voice of the Crew',
+        color: 0xffaa00, 
+        stats: { hp: 20, atk: 4, def: 3 },
+        insight: '+0'
+      }
     ];
 
     classes.forEach((classData, index) => {
-      const y = 160 + index * 100;
-      this.createClassBox(classData.cls, classData.name, classData.color, classData.stats, 150, y);
+      const y = 170 + index * 100;
+      this.createClassBox(classData.cls, classData.name, classData.color, classData.stats, 150, y, classData.title, classData.insight);
     });
   }
 
@@ -98,55 +137,77 @@ export class HubScene extends Phaser.Scene {
     color: number,
     stats: { hp: number; atk: number; def: number },
     x: number,
-    y: number
+    y: number,
+    title?: string,
+    insight?: string
   ): void {
     const container = this.add.container(x, y);
 
-    // Background box
+    // Background box with gradient effect
     const box = this.add.graphics();
-    box.fillStyle(0x222222, 1);
-    box.fillRoundedRect(-70, -35, 140, 70, 8);
-    box.lineStyle(2, 0x444444);
-    box.strokeRoundedRect(-70, -35, 140, 70, 8);
+    box.fillStyle(0x1a2030, 1);
+    box.fillRoundedRect(-75, -40, 150, 80, 8);
+    box.lineStyle(2, 0x334455);
+    box.strokeRoundedRect(-75, -40, 150, 80, 8);
     container.add(box);
 
-    // Color indicator
+    // Color indicator (pirate emblem style)
     const colorBox = this.add.graphics();
     colorBox.fillStyle(color, 1);
-    colorBox.fillRect(-55, -20, 20, 20);
+    colorBox.fillCircle(-50, -15, 12);
+    colorBox.lineStyle(2, 0xffffff, 0.3);
+    colorBox.strokeCircle(-50, -15, 12);
     container.add(colorBox);
 
     // Class name
-    const nameText = this.add.text(-30, -18, name, {
+    const nameText = this.add.text(-30, -25, name, {
       fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold'
     });
     container.add(nameText);
+    
+    // Title (subtitle)
+    if (title) {
+      const titleText = this.add.text(-30, -8, title, {
+        fontSize: '9px',
+        color: '#778899'
+      });
+      container.add(titleText);
+    }
 
     // Stats
-    const statsText = this.add.text(-55, 5, `HP:${stats.hp} ATK:${stats.atk} DEF:${stats.def}`, {
-      fontSize: '12px',
-      color: '#aaaaaa'
+    const statsText = this.add.text(-60, 10, `HP:${stats.hp} ATK:${stats.atk} DEF:${stats.def}`, {
+      fontSize: '11px',
+      color: '#88aacc'
     });
     container.add(statsText);
+    
+    // Insight bonus
+    if (insight) {
+      const insightText = this.add.text(-60, 25, `Insight: ${insight}`, {
+        fontSize: '10px',
+        color: '#44aaff'
+      });
+      container.add(insightText);
+    }
 
     // Selection border (hidden by default)
     const selectionBorder = this.add.graphics();
-    selectionBorder.lineStyle(3, 0xffcc00);
-    selectionBorder.strokeRoundedRect(-70, -35, 140, 70, 8);
+    selectionBorder.lineStyle(3, 0x44ffaa);
+    selectionBorder.strokeRoundedRect(-75, -40, 150, 80, 8);
     selectionBorder.setVisible(false);
     container.add(selectionBorder);
 
     // Lock overlay (for locked classes)
     const lockOverlay = this.add.graphics();
-    lockOverlay.fillStyle(0x000000, 0.7);
-    lockOverlay.fillRoundedRect(-70, -35, 140, 70, 8);
+    lockOverlay.fillStyle(0x000000, 0.8);
+    lockOverlay.fillRoundedRect(-75, -40, 150, 80, 8);
     container.add(lockOverlay);
 
     const lockText = this.add.text(0, 0, '🔒 LOCKED', {
       fontSize: '14px',
-      color: '#888888'
+      color: '#556677'
     }).setOrigin(0.5);
     container.add(lockText);
 
@@ -159,25 +220,25 @@ export class HubScene extends Phaser.Scene {
     container.setData('class', cls);
 
     // Make interactive
-    const hitArea = new Phaser.Geom.Rectangle(-70, -35, 140, 70);
+    const hitArea = new Phaser.Geom.Rectangle(-75, -40, 150, 80);
     container.setInteractive(hitArea, Phaser.Geom.Rectangle.Contains);
 
     container.on('pointerover', () => {
       if (this.meta.isClassUnlocked(cls)) {
         box.clear();
-        box.fillStyle(0x333333, 1);
-        box.fillRoundedRect(-70, -35, 140, 70, 8);
-        box.lineStyle(2, 0x666666);
-        box.strokeRoundedRect(-70, -35, 140, 70, 8);
+        box.fillStyle(0x253040, 1);
+        box.fillRoundedRect(-75, -40, 150, 80, 8);
+        box.lineStyle(2, 0x556677);
+        box.strokeRoundedRect(-75, -40, 150, 80, 8);
       }
     });
 
     container.on('pointerout', () => {
       box.clear();
-      box.fillStyle(0x222222, 1);
-      box.fillRoundedRect(-70, -35, 140, 70, 8);
-      box.lineStyle(2, 0x444444);
-      box.strokeRoundedRect(-70, -35, 140, 70, 8);
+      box.fillStyle(0x1a2030, 1);
+      box.fillRoundedRect(-75, -40, 150, 80, 8);
+      box.lineStyle(2, 0x334455);
+      box.strokeRoundedRect(-75, -40, 150, 80, 8);
     });
 
     container.on('pointerdown', () => {
@@ -193,20 +254,20 @@ export class HubScene extends Phaser.Scene {
    */
   private createUpgradeShop(): void {
     // Section header
-    this.add.text(500, 110, 'UPGRADES', {
-      fontSize: '20px',
-      color: '#ffffff',
+    this.add.text(500, 115, '🛠️ SHIP UPGRADES', {
+      fontSize: '16px',
+      color: '#aabbcc',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     const upgrades: { id: MetaUpgradeId; name: string; effect: string }[] = [
-      { id: 'MAX_HP', name: 'Max Health', effect: '+2 HP per level' },
-      { id: 'ATTACK', name: 'Attack', effect: '+1 ATK per level' },
-      { id: 'DEFENSE', name: 'Defense', effect: '+1 DEF per level' }
+      { id: 'MAX_HP', name: 'Hull Integrity', effect: '+2 HP per level' },
+      { id: 'ATTACK', name: 'Blade Sharpening', effect: '+1 ATK per level' },
+      { id: 'DEFENSE', name: 'Armor Plating', effect: '+1 DEF per level' }
     ];
 
     upgrades.forEach((upgrade, index) => {
-      const y = 150 + index * 60;
+      const y = 160 + index * 60;
       this.createUpgradeRow(upgrade.id, upgrade.name, upgrade.effect, 400, y);
     });
   }
@@ -272,20 +333,20 @@ export class HubScene extends Phaser.Scene {
    */
   private createUnlockShop(): void {
     // Section header
-    this.add.text(400, 340, 'UNLOCKS', {
-      fontSize: '20px',
-      color: '#ffffff',
+    this.add.text(400, 345, '🗝️ UNLOCKABLES', {
+      fontSize: '16px',
+      color: '#aabbcc',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // Fire Bomb unlock
-    this.createUnlockRow('fire_bomb', 'Fire Bomb', 25, 150, 380);
+    this.createUnlockRow('fire_bomb', 'Greek Fire', 25, 150, 390);
 
-    // Rogue class unlock
-    this.createUnlockRow('rogue', 'Rogue Class', 50, 400, 380);
+    // Navigator class unlock (was Rogue)
+    this.createUnlockRow('rogue', 'Navigator Path', 50, 400, 390);
 
-    // Guardian class unlock
-    this.createUnlockRow('guardian', 'Guardian Class', 50, 650, 380);
+    // Quartermaster class unlock (was Guardian)
+    this.createUnlockRow('guardian', 'Quartermaster Path', 50, 650, 390);
   }
 
   /**
@@ -408,19 +469,19 @@ export class HubScene extends Phaser.Scene {
    * Create start run button
    */
   private createStartButton(): void {
-    const button = this.add.text(400, 530, '[ START RUN ]', {
+    const button = this.add.text(400, 510, '⚓ SET SAIL ⚓', {
       fontSize: '28px',
-      color: '#00ff00',
+      color: '#44ddff',
       fontStyle: 'bold'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
     button.on('pointerover', () => {
-      button.setColor('#88ff88');
+      button.setColor('#88ffff');
       button.setScale(1.1);
     });
 
     button.on('pointerout', () => {
-      button.setColor('#00ff00');
+      button.setColor('#44ddff');
       button.setScale(1.0);
     });
 
@@ -433,9 +494,9 @@ export class HubScene extends Phaser.Scene {
    * Create controls help text
    */
   private createControlsHelp(): void {
-    this.add.text(400, 575, 'Controls: WASD/Arrows to move • 1-5 use items • R return to hub', {
-      fontSize: '12px',
-      color: '#666666'
+    this.add.text(400, 545, 'Controls: WASD/Arrows to move • 1-5 use items • R return to port', {
+      fontSize: '11px',
+      color: '#445566'
     }).setOrigin(0.5);
   }
 
@@ -547,10 +608,11 @@ export class HubScene extends Phaser.Scene {
   private refreshStats(): void {
     const lifetime = this.meta.getLifetime();
     this.statsText.setText(
-      `Runs: ${lifetime.runsStarted} | ` +
-      `Completed: ${lifetime.runsEnded} | ` +
-      `Kills: ${lifetime.enemiesKilled} | ` +
-      `Total Earned: ${lifetime.currencyEarned}`
+      `Voyages: ${lifetime.runsStarted} | ` +
+      `Survived: ${lifetime.runsEnded} | ` +
+      `Foes Vanquished: ${lifetime.enemiesKilled} | ` +
+      `Total Plunder: ${lifetime.currencyEarned}`
     );
+    this.statsText.setColor('#556677');
   }
 }
