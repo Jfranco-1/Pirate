@@ -486,7 +486,7 @@ export class HubScene extends Phaser.Scene {
     });
 
     button.on('pointerdown', () => {
-      this.scene.start('GameScene');
+      this.scene.start('WorldMapScene');
     });
   }
 
