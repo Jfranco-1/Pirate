@@ -311,19 +311,24 @@ export class StoryEventUI {
       });
     }
     
-    // Show result
-    this.showResult(option);
+    // Store callback to call when Continue is clicked
+    const savedCallback = this.onCompleteCallback;
+    const savedEffects = option.effects;
+    this.onCompleteCallback = undefined; // Clear to prevent double-call
     
-    // Trigger callback with effects
-    if (this.onCompleteCallback) {
-      this.onCompleteCallback(option.effects);
-    }
+    // Show result with callback
+    this.showResult(option, () => {
+      // Trigger callback with effects only when Continue is clicked
+      if (savedCallback) {
+        savedCallback(savedEffects);
+      }
+    });
   }
   
   /**
    * Show the result of a choice
    */
-  private showResult(option: StoryEventOption): void {
+  private showResult(option: StoryEventOption, onContinue?: () => void): void {
     const width = this.scene.cameras.main.width;
     const height = this.scene.cameras.main.height;
     
@@ -386,7 +391,13 @@ export class StoryEventUI {
     continueBtn.setInteractive({ useHandCursor: true });
     continueBtn.on('pointerover', () => continueBtn.setFillStyle(0x4a4060));
     continueBtn.on('pointerout', () => continueBtn.setFillStyle(0x3a3050));
-    continueBtn.on('pointerdown', () => this.hide());
+    continueBtn.on('pointerdown', () => {
+      // Call the callback when Continue is clicked
+      if (onContinue) {
+        onContinue();
+      }
+      this.hide();
+    });
     this.resultPanel.add(continueBtn);
     
     const continueText = this.scene.add.text(0, 150, 'Continue', {

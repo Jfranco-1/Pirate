@@ -703,6 +703,18 @@ export class GameScene extends Phaser.Scene {
     
     // Block input while story UI is showing
     if (this.isStoryUIActive()) {
+      // ESC closes any open story UI (emergency escape)
+      if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
+        if (this.storyEventUI?.isShowing()) {
+          this.storyEventUI.hide();
+          this.pendingStoryEvent = false;
+        }
+        if (this.loreUI?.isShowing()) this.loreUI.hide();
+        if (this.dialogueUI?.isShowing()) this.dialogueUI.hide();
+        if (this.journalUI?.isShowing()) this.journalUI.hide();
+        return;
+      }
+      
       // Only allow journal toggle when journal is open
       if (this.journalKey && Phaser.Input.Keyboard.JustDown(this.journalKey)) {
         if (this.journalUI?.isShowing()) {
@@ -1425,14 +1437,17 @@ export class GameScene extends Phaser.Scene {
       curseStage,
       playerClass,
       1, // Dungeon level (placeholder)
-      0.2 // 20% base chance per new room
+      0.05 // 5% base chance per new room (reduced for stability)
     );
     
     if (event) {
       this.pendingStoryEvent = true;
+      console.log(`[STORY] Queuing event: ${event.title}`);
       // Slight delay before showing event
       this.time.delayedCall(500, () => {
-        this.showStoryEvent(event);
+        if (this.pendingStoryEvent) { // Double-check still pending
+          this.showStoryEvent(event);
+        }
       });
     }
   }
