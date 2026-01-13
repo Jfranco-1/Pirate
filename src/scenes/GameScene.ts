@@ -1428,7 +1428,7 @@ export class GameScene extends Phaser.Scene {
     
     const insight = this.session.getInsight().current;
     const paleAttention = this.meta?.getPaleAttention() || 0;
-    const curseStage = this.session.getCurse().getState().stage;
+    const curseStage = this.session.getCurse().getStage();
     const playerClass = this.session.getPirateClass();
     
     const event = this.storyEventSystem.rollForEvent(
@@ -1563,7 +1563,7 @@ export class GameScene extends Phaser.Scene {
     
     const insight = this.session.getInsight().current;
     const paleAttention = this.meta?.getPaleAttention() || 0;
-    const curseStage = this.session.getCurse().getState().stage;
+    const curseStage = this.session.getCurse().getStage();
     const playerClass = this.session.getPirateClass();
     
     this.dialogueUI.startDialogue(
