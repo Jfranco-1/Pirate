@@ -4,14 +4,14 @@ import { AIBehavior, CombatEntity } from '../../types';
 import { StatusEffectFactory } from '../../systems/StatusEffect';
 
 /**
- * Goblin - Aggressive melee enemy
+ * Marine - Armada melee soldier
  *
- * Weak, fast-moving enemy that chases the player relentlessly.
- * Low HP and attack, no defense. Dies quickly but can overwhelm in groups.
+ * Disciplined Gilded Armada soldier. Aggressive pursuit tactics.
+ * Low HP and attack, minimal defense. Dangerous in groups.
  *
  * Stats: 8 HP, 3 attack, 0 defense
  * Behavior: AGGRESSIVE (chase and melee attack)
- * Color: Red
+ * Sprite: enemy_marine (blue uniform, gold trim)
  */
 export class Goblin extends Enemy {
   constructor(scene: Phaser.Scene, gridX: number, gridY: number) {
@@ -26,7 +26,8 @@ export class Goblin extends Enemy {
         defense: 0
       },
       AIBehavior.AGGRESSIVE,
-      0xff0000 // Red
+      0x2244aa, // Blue (fallback)
+      'enemy_marine'
     );
   }
 
@@ -45,7 +46,7 @@ export class Goblin extends Enemy {
       // Log to combat log (if GameScene)
       const gameScene = this.scene as any;
       if (gameScene.combatLog) {
-        gameScene.combatLog.addEntry('Goblin inflicts Bleeding!');
+        gameScene.combatLog.addEntry('Marine\'s blade cuts deep!');
       }
     }
 

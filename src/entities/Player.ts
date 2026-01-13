@@ -1,10 +1,18 @@
 import Phaser from 'phaser';
-import { CombatEntity, CombatStats, GridPosition, StatusEffectType } from '../types';
+import { CombatEntity, CombatStats, GridPosition, StatusEffectType, PirateClass } from '../types';
 import { GridManager } from '../systems/GridManager';
 import { CombatSystem } from '../systems/CombatSystem';
 import { HealthBar } from '../ui/HealthBar';
 import { StatusEffectManager } from '../systems/StatusEffectManager';
 import { StatusIcon } from '../ui/StatusIcon';
+
+// Map pirate class to sprite key
+const CLASS_SPRITES: Record<PirateClass, string> = {
+  [PirateClass.DUELIST]: 'player_duelist',
+  [PirateClass.QUARTERMASTER]: 'player_quartermaster',
+  [PirateClass.NAVIGATOR]: 'player_navigator',
+  [PirateClass.CHAPLAIN]: 'player_chaplain'
+};
 
 export class Player implements CombatEntity {
   gridX: number;
@@ -16,7 +24,7 @@ export class Player implements CombatEntity {
   public statusManager: StatusEffectManager;
   private statusIcons: Map<StatusEffectType, StatusIcon> = new Map();
 
-  constructor(scene: Phaser.Scene, gridX: number, gridY: number, startingStats?: CombatStats, color: number = 0x00ff00) {
+  constructor(scene: Phaser.Scene, gridX: number, gridY: number, startingStats?: CombatStats, color: number = 0x00ff00, pirateClass?: PirateClass) {
     this.scene = scene;
     this.gridX = gridX;
     this.gridY = gridY;
@@ -29,9 +37,20 @@ export class Player implements CombatEntity {
       defense: 2
     };
 
-    // Create sprite with entity texture (color based on class)
-    this.sprite = scene.add.sprite(0, 0, 'entity');
-    this.sprite.setTint(color);
+    // Determine sprite texture based on class
+    let textureKey = 'entity';  // Fallback
+    if (pirateClass !== undefined && CLASS_SPRITES[pirateClass]) {
+      textureKey = CLASS_SPRITES[pirateClass];
+    }
+    
+    // Create sprite - use pirate class sprite if available
+    this.sprite = scene.add.sprite(0, 0, textureKey);
+    this.sprite.setDepth(100);
+    
+    // Only tint if using fallback entity texture
+    if (textureKey === 'entity') {
+      this.sprite.setTint(color);
+    }
 
     // Create health bar
     this.healthBar = new HealthBar(scene, this.stats.maxHP, this.stats.currentHP);

@@ -4,14 +4,14 @@ import { AIBehavior, CombatEntity } from '../../types';
 import { StatusEffectFactory } from '../../systems/StatusEffect';
 
 /**
- * Archer - Ranged enemy
+ * Musketeer - Armada ranged soldier
  *
- * Fragile ranged attacker that maintains distance from the player.
- * Higher attack than Goblin but very low HP. Kites the player.
+ * Armada ranged attacker with musket. Maintains distance, deadly accurate.
+ * Higher attack but fragile. Kites aggressively.
  *
  * Stats: 6 HP, 4 attack, 0 defense
  * Behavior: RANGED (maintain 3-5 tile distance)
- * Color: Yellow
+ * Sprite: enemy_musketeer (blue coat, tricorn hat)
  */
 export class Archer extends Enemy {
   constructor(scene: Phaser.Scene, gridX: number, gridY: number) {
@@ -26,7 +26,8 @@ export class Archer extends Enemy {
         defense: 0
       },
       AIBehavior.RANGED,
-      0xffff00 // Yellow
+      0x2255bb, // Blue (fallback)
+      'enemy_musketeer'
     );
   }
 
@@ -45,7 +46,7 @@ export class Archer extends Enemy {
       // Log to combat log (if GameScene)
       const gameScene = this.scene as any;
       if (gameScene.combatLog) {
-        gameScene.combatLog.addEntry('Archer inflicts Poison!');
+        gameScene.combatLog.addEntry('Musketeer\'s shot poisons you!');
       }
     }
 

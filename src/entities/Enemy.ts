@@ -31,7 +31,8 @@ export class Enemy implements CombatEntity {
     gridY: number,
     stats: CombatStats,
     behavior: AIBehavior,
-    color: number
+    color: number,
+    textureKey?: string
   ) {
     this.scene = scene;
     this.gridX = gridX;
@@ -39,9 +40,15 @@ export class Enemy implements CombatEntity {
     this.stats = stats;
     this.behavior = behavior;
 
-    // Create sprite with entity texture and color tint
-    this.sprite = scene.add.sprite(0, 0, 'entity');
-    this.sprite.setTint(color);
+    // Create sprite - use custom texture if provided, otherwise fallback to entity
+    const texture = textureKey || 'entity';
+    this.sprite = scene.add.sprite(0, 0, texture);
+    this.sprite.setDepth(50);
+    
+    // Only apply tint if using fallback entity texture
+    if (!textureKey) {
+      this.sprite.setTint(color);
+    }
 
     // Create health bar
     this.healthBar = new HealthBar(scene, stats.maxHP, stats.currentHP);

@@ -4,14 +4,14 @@ import { AIBehavior, CombatEntity } from '../../types';
 import { StatusEffectFactory } from '../../systems/StatusEffect';
 
 /**
- * Brute - Defensive tank enemy
+ * Brute - Heavy pirate enforcer
  *
- * Tanky enemy that only attacks when engaged. High HP and defense,
- * strong attack. Stands ground and punishes players who get too close.
+ * Massive, muscular brute. Only attacks when engaged but hits HARD.
+ * High HP and defense, devastating attack. Carries anchor as weapon.
  *
  * Stats: 15 HP, 6 attack, 3 defense
  * Behavior: DEFENSIVE (only attack when adjacent)
- * Color: Blue
+ * Sprite: enemy_brute (muscular, leather, anchor weapon)
  */
 export class Brute extends Enemy {
   constructor(scene: Phaser.Scene, gridX: number, gridY: number) {
@@ -26,7 +26,8 @@ export class Brute extends Enemy {
         defense: 3
       },
       AIBehavior.DEFENSIVE,
-      0x0000ff // Blue
+      0x664422, // Brown (fallback)
+      'enemy_brute'
     );
   }
 
@@ -45,7 +46,7 @@ export class Brute extends Enemy {
       // Log to combat log (if GameScene)
       const gameScene = this.scene as any;
       if (gameScene.combatLog) {
-        gameScene.combatLog.addEntry('Brute inflicts Weakness!');
+        gameScene.combatLog.addEntry('Brute\'s anchor stuns you!');
       }
     }
 

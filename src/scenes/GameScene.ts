@@ -174,10 +174,11 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Create player with class-specific color
+    // Create player with class-specific sprite
     const startingStats = this.meta.getStartingPlayerStats();
     const playerColor = this.getClassColor(this.meta.getSelectedClass());
-    this.player = new Player(this, startX, startY, startingStats, playerColor);
+    const playerPirateClass = this.session ? this.session.getPirateClass() : PirateClass.DUELIST;
+    this.player = new Player(this, startX, startY, startingStats, playerColor, playerPirateClass);
     this.player.updateSpritePosition(this.gridManager);
 
     // Setup status effect callbacks for player
@@ -1277,10 +1278,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private getEnemyName(enemy: Enemy): string {
-    if (enemy instanceof Goblin) return 'Goblin';
-    if (enemy instanceof Archer) return 'Archer';
+    if (enemy instanceof Goblin) return 'Marine';
+    if (enemy instanceof Archer) return 'Musketeer';
     if (enemy instanceof Brute) return 'Brute';
-    return 'Enemy';
+    return 'Pirate';
   }
 
   private getClassColor(cls: CharacterClass): number {
