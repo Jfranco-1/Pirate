@@ -52,6 +52,10 @@ export class WorldMapScene extends Phaser.Scene {
   private dayCounter!: Phaser.GameObjects.Text;
   private curseIndicator!: Phaser.GameObjects.Container;
   
+  // Active menu tracking (to prevent stacking)
+  private activeOverlay: Phaser.GameObjects.Rectangle | null = null;
+  private activePanel: Phaser.GameObjects.Container | null = null;
+  
   constructor() {
     super({ key: 'WorldMapScene' });
   }
@@ -633,6 +637,9 @@ export class WorldMapScene extends Phaser.Scene {
   private sailToSelected(): void {
     if (!this.selectedLocation) return;
     
+    // Clean up any open menus first
+    this.cleanupMenus();
+    
     const loc = this.selectedLocation;
     
     // Calculate travel time
@@ -717,21 +724,6 @@ export class WorldMapScene extends Phaser.Scene {
       delay: 1500,
       duration: 500,
       onComplete: () => msg.destroy()
-    });
-  }
-  
-  private closePortMenu(overlay: Phaser.GameObjects.Rectangle, panel: Phaser.GameObjects.Container): void {
-    overlay.destroy();
-    panel.destroy();
-    
-    // Restart bobbing animation
-    this.tweens.add({
-      targets: this.shipSprite,
-      y: this.shipSprite.y + 3,
-      duration: 1500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
     });
   }
   
@@ -1185,8 +1177,9 @@ export class WorldMapScene extends Phaser.Scene {
     closeBtn.on('pointerover', () => closeBtn.setColor('#ffffff'));
     closeBtn.on('pointerout', () => closeBtn.setColor('#c9a227'));
     closeBtn.on('pointerdown', () => {
-      panel.destroy();
+      this.cleanupMenus();
       this.refreshResourcePanel();
+      this.restartShipBobbing();
     });
     panel.add(closeBtn);
   }
@@ -1211,11 +1204,16 @@ export class WorldMapScene extends Phaser.Scene {
   
   // Update the port menu to use the new systems
   private showPortMenuUpdated(loc: MapLocation): void {
+    // Clean up any existing overlay first
+    this.cleanupMenus();
+    
     const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.8);
     overlay.setDepth(500);
+    this.activeOverlay = overlay;
     
     const panel = this.add.container(400, 300);
     panel.setDepth(501);
+    this.activePanel = panel;
     
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1520, 1);
@@ -1277,18 +1275,42 @@ export class WorldMapScene extends Phaser.Scene {
   }
   
   private closePortMenuUpdated(overlay: Phaser.GameObjects.Rectangle, panel: Phaser.GameObjects.Container): void {
-    // Clean up any sub-panels
-    if ((overlay as any).tradePanelRef) {
-      (overlay as any).tradePanelRef.destroy();
-    }
-    if ((overlay as any).tavernPanelRef) {
-      (overlay as any).tavernPanelRef.destroy();
-    }
-    
-    overlay.destroy();
-    panel.destroy();
+    this.cleanupMenus();
     
     // Restart bobbing animation
+    this.restartShipBobbing();
+  }
+  
+  /**
+   * Clean up all active menus and overlays
+   */
+  private cleanupMenus(): void {
+    // Clean up any sub-panels stored on overlay
+    if (this.activeOverlay) {
+      if ((this.activeOverlay as any).tradePanelRef) {
+        (this.activeOverlay as any).tradePanelRef.destroy();
+      }
+      if ((this.activeOverlay as any).tavernPanelRef) {
+        (this.activeOverlay as any).tavernPanelRef.destroy();
+      }
+      this.activeOverlay.destroy();
+      this.activeOverlay = null;
+    }
+    
+    if (this.activePanel) {
+      this.activePanel.destroy();
+      this.activePanel = null;
+    }
+  }
+  
+  /**
+   * Restart the ship bobbing animation
+   */
+  private restartShipBobbing(): void {
+    // Kill any existing ship tweens first
+    this.tweens.killTweensOf(this.shipSprite);
+    
+    // Start fresh bobbing animation
     this.tweens.add({
       targets: this.shipSprite,
       y: this.shipSprite.y + 3,
