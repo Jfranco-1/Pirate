@@ -63,6 +63,8 @@ export class GameScene extends Phaser.Scene {
   private targetingItemType: ItemType | null = null;
   private targetCursorSprite: Phaser.GameObjects.Sprite | null = null;
   private targetedEnemyIndex: number = 0;
+  private enterKey: Phaser.Input.Keyboard.Key | null = null;
+  private escKey: Phaser.Input.Keyboard.Key | null = null;
   
   // Pirate theme systems
   private spriteGenerator: SpriteGenerator | null = null;
@@ -121,6 +123,8 @@ export class GameScene extends Phaser.Scene {
     this.targetingItemType = null;
     this.targetCursorSprite = null;
     this.targetedEnemyIndex = 0;
+    this.enterKey = null;
+    this.escKey = null;
     
     // Pirate systems
     this.spriteGenerator = null;
@@ -145,7 +149,32 @@ export class GameScene extends Phaser.Scene {
     // Sprites are generated programmatically in create()
   }
 
+  /**
+   * Clean up when scene shuts down
+   */
+  shutdown(): void {
+    // Remove all keyboard listeners
+    this.input.keyboard?.removeAllKeys(true);
+    
+    // Destroy UI components
+    this.loreUI?.destroy();
+    this.journalUI?.destroy();
+    this.dialogueUI?.destroy();
+    this.storyEventUI?.destroy();
+    this.curseInsightPanel?.destroy();
+    this.inventoryUI?.destroy();
+    
+    // Clear sprite references
+    this.tileSprites.forEach(sprite => sprite.destroy());
+    this.tileSprites = [];
+    
+    console.log('[GAME] Scene shutdown complete');
+  }
+
   create(): void {
+    // Register shutdown handler
+    this.events.on('shutdown', this.shutdown, this);
+    
     // Remove any existing keyboard listeners from previous runs
     this.input.keyboard?.removeAllKeys(true);
 
@@ -496,6 +525,10 @@ export class GameScene extends Phaser.Scene {
 
       // Return to hub key
       this.returnKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
+      
+      // Targeting keys (created once, not in update loop)
+      this.enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+      this.escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
     }
 
     // Create player status panel (top-left UI)
@@ -727,18 +760,14 @@ export class GameScene extends Phaser.Scene {
       }
 
       // Enter key confirms throw
-      if (this.input.keyboard) {
-        const enterKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
-        if (Phaser.Input.Keyboard.JustDown(enterKey)) {
-          this.confirmThrow();
-          return;
-        }
+      if (this.enterKey && Phaser.Input.Keyboard.JustDown(this.enterKey)) {
+        this.confirmThrow();
+        return;
+      }
 
-        // Escape key cancels targeting
-        const escKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ESC);
-        if (Phaser.Input.Keyboard.JustDown(escKey)) {
-          this.cancelTargeting();
-        }
+      // Escape key cancels targeting
+      if (this.escKey && Phaser.Input.Keyboard.JustDown(this.escKey)) {
+        this.cancelTargeting();
       }
 
       return;  // Block normal input during targeting
