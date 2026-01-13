@@ -272,5 +272,149 @@ export class MetaProgressionManager {
         return { maxHP: 20, currentHP: 20, attack: 5, defense: 2 };
     }
   }
+  
+  // --- Lore Discovery (Profile-level persistence) ---
+  
+  /**
+   * Check if a lore entry has been discovered
+   */
+  hasDiscoveredLore(loreId: string): boolean {
+    const discovered = (this.save as any).loreDiscovered || [];
+    return discovered.includes(loreId);
+  }
+  
+  /**
+   * Mark a lore entry as discovered
+   */
+  discoverLore(loreId: string): void {
+    if (!((this.save as any).loreDiscovered)) {
+      (this.save as any).loreDiscovered = [];
+    }
+    
+    if (!(this.save as any).loreDiscovered.includes(loreId)) {
+      (this.save as any).loreDiscovered.push(loreId);
+      this.saveNow();
+    }
+  }
+  
+  /**
+   * Get all discovered lore IDs
+   */
+  getDiscoveredLoreIds(): string[] {
+    return [...((this.save as any).loreDiscovered || [])];
+  }
+  
+  /**
+   * Get count of discovered lore
+   */
+  getDiscoveredLoreCount(): number {
+    return ((this.save as any).loreDiscovered || []).length;
+  }
+  
+  // --- Translation Progress ---
+  
+  /**
+   * Get translation fragment count for a text
+   */
+  getTranslationProgress(textId: string): number {
+    const progress = (this.save as any).translationProgress || {};
+    return progress[textId] || 0;
+  }
+  
+  /**
+   * Add translation fragment for a text
+   */
+  addTranslationFragment(textId: string): number {
+    if (!(this.save as any).translationProgress) {
+      (this.save as any).translationProgress = {};
+    }
+    
+    const current = (this.save as any).translationProgress[textId] || 0;
+    (this.save as any).translationProgress[textId] = current + 1;
+    this.saveNow();
+    
+    return (this.save as any).translationProgress[textId];
+  }
+  
+  // --- Pale Attention (Profile-level) ---
+  
+  /**
+   * Get current Pale Messenger attention level
+   */
+  getPaleAttention(): number {
+    return (this.save as any).paleAttention?.current || 0;
+  }
+  
+  /**
+   * Get Pale Attention floor (permanent minimum)
+   */
+  getPaleAttentionFloor(): number {
+    return (this.save as any).paleAttention?.floor || 0;
+  }
+  
+  /**
+   * Add Pale Attention - locks floor at thresholds
+   */
+  addPaleAttention(amount: number): void {
+    if (!(this.save as any).paleAttention) {
+      (this.save as any).paleAttention = { current: 0, floor: 0 };
+    }
+    
+    const oldValue = (this.save as any).paleAttention.current;
+    (this.save as any).paleAttention.current = Math.min(100, oldValue + amount);
+    
+    // Lock floor at thresholds (PERMANENT)
+    const thresholds = [20, 40, 60, 80, 100];
+    for (const threshold of thresholds) {
+      if ((this.save as any).paleAttention.current >= threshold && 
+          (this.save as any).paleAttention.floor < threshold) {
+        (this.save as any).paleAttention.floor = threshold;
+        console.log(`[PALE ATTENTION] Floor locked at ${threshold} - PERMANENT`);
+      }
+    }
+    
+    this.saveNow();
+  }
+  
+  /**
+   * Reduce Pale Attention (cannot go below floor)
+   */
+  reducePaleAttention(amount: number): void {
+    if (!(this.save as any).paleAttention) return;
+    
+    const floor = (this.save as any).paleAttention.floor || 0;
+    (this.save as any).paleAttention.current = Math.max(
+      floor,
+      (this.save as any).paleAttention.current - amount
+    );
+    this.saveNow();
+  }
+  
+  /**
+   * Check if player has discovered the Pale Messenger's existence
+   */
+  hasDiscoveredPaleMessenger(): boolean {
+    return (this.save as any).awarenessThresholdCrossed || false;
+  }
+  
+  /**
+   * Mark that player has discovered the Pale Messenger
+   */
+  markPaleMessengerDiscovered(): void {
+    (this.save as any).awarenessThresholdCrossed = true;
+    
+    // Immediately lock attention floor at 20
+    if (!(this.save as any).paleAttention) {
+      (this.save as any).paleAttention = { current: 20, floor: 20 };
+    } else if ((this.save as any).paleAttention.floor < 20) {
+      (this.save as any).paleAttention.current = Math.max(
+        (this.save as any).paleAttention.current, 
+        20
+      );
+      (this.save as any).paleAttention.floor = 20;
+    }
+    
+    this.saveNow();
+  }
 }
 

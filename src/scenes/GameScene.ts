@@ -22,6 +22,12 @@ import { MetaProgressionManager } from '../systems/MetaProgressionManager';
 import { SpriteGenerator } from '../systems/SpriteGenerator';
 import { SessionStateManager } from '../systems/SessionStateManager';
 import { CurseInsightPanel } from '../ui/CurseInsightPanel';
+import { LoreManager } from '../systems/LoreManager';
+import { StoryEventSystem, StoryEvent, StoryEventOption } from '../systems/StoryEventSystem';
+import { DialogueSystem, NPCType } from '../systems/DialogueSystem';
+import { LoreUI, JournalUI } from '../ui/LoreUI';
+import { DialogueUI } from '../ui/DialogueUI';
+import { StoryEventUI } from '../ui/StoryEventUI';
 
 export class GameScene extends Phaser.Scene {
   private map: number[][] = [];
@@ -63,6 +69,18 @@ export class GameScene extends Phaser.Scene {
   private session: SessionStateManager | null = null;
   private curseInsightPanel: CurseInsightPanel | null = null;
   private tileSprites: Phaser.GameObjects.Sprite[] = [];
+  
+  // Story systems
+  private loreManager: LoreManager | null = null;
+  private storyEventSystem: StoryEventSystem | null = null;
+  private dialogueSystem: DialogueSystem | null = null;
+  private loreUI: LoreUI | null = null;
+  private journalUI: JournalUI | null = null;
+  private dialogueUI: DialogueUI | null = null;
+  private storyEventUI: StoryEventUI | null = null;
+  private journalKey: Phaser.Input.Keyboard.Key | null = null;
+  private roomsExplored: Set<number> = new Set();
+  private pendingStoryEvent: boolean = false;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -109,6 +127,18 @@ export class GameScene extends Phaser.Scene {
     this.session = null;
     this.curseInsightPanel = null;
     this.tileSprites = [];
+    
+    // Story systems
+    this.loreManager = null;
+    this.storyEventSystem = null;
+    this.dialogueSystem = null;
+    this.loreUI = null;
+    this.journalUI = null;
+    this.dialogueUI = null;
+    this.storyEventUI = null;
+    this.journalKey = null;
+    this.roomsExplored = new Set();
+    this.pendingStoryEvent = false;
   }
 
   preload(): void {
@@ -520,6 +550,24 @@ export class GameScene extends Phaser.Scene {
 
     // Create sound manager
     this.soundManager = new SoundManager();
+    
+    // Initialize story systems
+    this.loreManager = LoreManager.getInstance();
+    this.storyEventSystem = new StoryEventSystem();
+    this.dialogueSystem = new DialogueSystem();
+    
+    // Create story UIs
+    this.loreUI = new LoreUI(this);
+    this.journalUI = new JournalUI(this);
+    this.dialogueUI = new DialogueUI(this);
+    this.storyEventUI = new StoryEventUI(this);
+    
+    // Journal key (J)
+    this.journalKey = this.input.keyboard?.addKey(Phaser.Input.Keyboard.KeyCodes.J) || null;
+    
+    // Log story system initialization
+    console.log('[STORY] Story systems initialized');
+    console.log(`[STORY] Discovered lore: ${this.meta.getDiscoveredLoreCount()} entries`);
   }
 
   private renderMap(): void {
@@ -619,6 +667,23 @@ export class GameScene extends Phaser.Scene {
     if (this.curseInsightPanel && this.session) {
       this.curseInsightPanel.update(this.session.getCurse(), this.session.getInsight());
     }
+    
+    // Block input while story UI is showing
+    if (this.isStoryUIActive()) {
+      // Only allow journal toggle when journal is open
+      if (this.journalKey && Phaser.Input.Keyboard.JustDown(this.journalKey)) {
+        if (this.journalUI?.isShowing()) {
+          this.journalUI.hide();
+        }
+      }
+      return;
+    }
+    
+    // Journal toggle (J key)
+    if (this.journalKey && Phaser.Input.Keyboard.JustDown(this.journalKey)) {
+      this.journalUI?.toggle();
+      return;
+    }
 
     // Check if run is complete (death or victory)
     if (this.runComplete) {
@@ -710,6 +775,9 @@ export class GameScene extends Phaser.Scene {
 
     // If player successfully moved, end player turn
     if (playerMoved) {
+      // Check for room exploration events
+      this.checkRoomExploration();
+      
       // Track player HP before enemy turn
       const playerHPBefore = this.player.stats.currentHP;
       const playerXBefore = this.player.sprite.x;
@@ -1275,6 +1343,200 @@ export class GameScene extends Phaser.Scene {
         onComplete();
       }
     });
+  }
+
+  // --- Story System Methods ---
+  
+  /**
+   * Check if any story UI is currently active
+   */
+  private isStoryUIActive(): boolean {
+    return !!(
+      this.loreUI?.isShowing() ||
+      this.journalUI?.isShowing() ||
+      this.dialogueUI?.isShowing() ||
+      this.storyEventUI?.isShowing()
+    );
+  }
+  
+  /**
+   * Check and trigger room exploration events
+   */
+  private checkRoomExploration(): void {
+    if (!this.player || !this.session || !this.storyEventSystem) return;
+    
+    // Find current room
+    const currentRoom = this.rooms.findIndex(r =>
+      this.player!.gridX >= r.x && this.player!.gridX < r.x + r.width &&
+      this.player!.gridY >= r.y && this.player!.gridY < r.y + r.height
+    );
+    
+    if (currentRoom >= 0 && !this.roomsExplored.has(currentRoom)) {
+      this.roomsExplored.add(currentRoom);
+      
+      // Roll for story event when entering new room
+      this.rollForStoryEvent();
+    }
+  }
+  
+  /**
+   * Roll for a random story event
+   */
+  private rollForStoryEvent(): void {
+    if (!this.session || !this.storyEventSystem || this.pendingStoryEvent) return;
+    
+    const insight = this.session.getInsight().current;
+    const paleAttention = this.meta?.getPaleAttention() || 0;
+    const curseStage = this.session.getCurse().getState().stage;
+    const playerClass = this.session.getPirateClass();
+    
+    const event = this.storyEventSystem.rollForEvent(
+      insight,
+      paleAttention,
+      curseStage,
+      playerClass,
+      1, // Dungeon level (placeholder)
+      0.2 // 20% base chance per new room
+    );
+    
+    if (event) {
+      this.pendingStoryEvent = true;
+      // Slight delay before showing event
+      this.time.delayedCall(500, () => {
+        this.showStoryEvent(event);
+      });
+    }
+  }
+  
+  /**
+   * Show a story event
+   */
+  private showStoryEvent(event: StoryEvent): void {
+    if (!this.storyEventUI || !this.session) return;
+    
+    console.log(`[STORY] Triggering event: ${event.title}`);
+    
+    this.storyEventUI.showEvent(event, (effects) => {
+      this.applyStoryEffects(effects);
+      this.storyEventSystem?.markTriggered(event.id);
+      this.pendingStoryEvent = false;
+    });
+  }
+  
+  /**
+   * Apply effects from a story event choice
+   */
+  private applyStoryEffects(effects: StoryEventOption['effects']): void {
+    if (!this.session || !this.player) return;
+    
+    // Insight gain
+    if (effects.insightGain) {
+      this.session.getInsight().gain(effects.insightGain, 'story_event');
+      this.curseInsightPanel?.showInsightGain(effects.insightGain);
+      console.log(`[STORY] +${effects.insightGain} insight`);
+    }
+    
+    // Pale Attention
+    if (effects.paleAttentionGain && this.meta) {
+      this.meta.addPaleAttention(effects.paleAttentionGain);
+      console.log(`[STORY] +${effects.paleAttentionGain} pale attention`);
+    }
+    
+    // Currency
+    if (effects.currencyGain && this.meta) {
+      this.meta.addCurrency(effects.currencyGain);
+      this.runCurrencyEarned += effects.currencyGain;
+      FloatingText.create(
+        this,
+        this.player.sprite.x,
+        this.player.sprite.y - 40,
+        `+${effects.currencyGain} 🪙`,
+        '#ffd700'
+      );
+    }
+    
+    if (effects.currencyCost && this.meta) {
+      this.meta.addCurrency(-effects.currencyCost);
+    }
+    
+    // Health
+    if (effects.healthGain) {
+      this.player.stats.currentHP = Math.min(
+        this.player.stats.maxHP,
+        this.player.stats.currentHP + effects.healthGain
+      );
+      FloatingText.create(
+        this,
+        this.player.sprite.x,
+        this.player.sprite.y - 40,
+        `+${effects.healthGain} HP`,
+        '#00ff00'
+      );
+    }
+    
+    if (effects.healthCost) {
+      this.player.stats.currentHP -= effects.healthCost;
+      FloatingText.create(
+        this,
+        this.player.sprite.x,
+        this.player.sprite.y - 40,
+        `-${effects.healthCost} HP`,
+        '#ff4444'
+      );
+    }
+    
+    // Curse advance
+    if (effects.curseAdvance) {
+      // Partial day advancement to simulate curse progression
+      const days = Math.ceil(effects.curseAdvance);
+      this.session.advanceDay(days);
+      this.curseInsightPanel?.showCurseIncrease();
+    }
+    
+    // Reveal lore
+    if (effects.revealLore && this.loreManager) {
+      const insight = this.session.getInsight().current;
+      const result = this.loreManager.discoverLore(effects.revealLore, insight);
+      if (result) {
+        console.log(`[STORY] Discovered lore: ${effects.revealLore}`);
+        // Show lore notification
+        FloatingText.create(
+          this,
+          400,
+          100,
+          '📜 New lore discovered!',
+          '#c9a227'
+        );
+      }
+    }
+  }
+  
+  /**
+   * Trigger an NPC dialogue
+   */
+  private triggerDialogue(npcType: NPCType): void {
+    if (!this.dialogueUI || !this.session) return;
+    
+    const insight = this.session.getInsight().current;
+    const paleAttention = this.meta?.getPaleAttention() || 0;
+    const curseStage = this.session.getCurse().getState().stage;
+    const playerClass = this.session.getPirateClass();
+    
+    this.dialogueUI.startDialogue(
+      npcType,
+      insight,
+      paleAttention,
+      curseStage,
+      playerClass,
+      () => {
+        console.log('[DIALOGUE] Conversation ended');
+      },
+      (effects) => {
+        if (effects) {
+          this.applyStoryEffects(effects as any);
+        }
+      }
+    );
   }
 
   private getEnemyName(enemy: Enemy): string {
