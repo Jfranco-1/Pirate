@@ -694,26 +694,544 @@ export class WorldMapScene extends Phaser.Scene {
   }
   
   private showPortMessage(loc: MapLocation): void {
-    // Temporary port interaction until PortScene is created
-    const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.8);
+    // Use the updated port menu with trading and tavern
+    this.showPortMenuUpdated(loc);
+  }
+  
+  private restAtPort(loc: MapLocation): void {
+    // Heal player, advance 1 day
+    this.session.advanceDay(1);
+    this.refreshResourcePanel();
     
-    const panel = this.add.container(400, 300);
+    // Show message
+    const msg = this.add.text(400, 350, '💤 You rest and recover... (+1 day)', {
+      fontSize: '16px',
+      color: '#44ff44',
+      backgroundColor: '#000000',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5).setDepth(1000);
+    
+    this.tweens.add({
+      targets: msg,
+      alpha: 0,
+      delay: 1500,
+      duration: 500,
+      onComplete: () => msg.destroy()
+    });
+  }
+  
+  private closePortMenu(overlay: Phaser.GameObjects.Rectangle, panel: Phaser.GameObjects.Container): void {
+    overlay.destroy();
+    panel.destroy();
+    
+    // Restart bobbing animation
+    this.tweens.add({
+      targets: this.shipSprite,
+      y: this.shipSprite.y + 3,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+  
+  /**
+   * Refresh the resource panel UI
+   */
+  private refreshResourcePanel(): void {
+    this.resourcePanel.removeAll(true);
+    
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.7);
+    bg.fillRoundedRect(0, 0, 180, 100, 8);
+    bg.lineStyle(2, 0x4a3050);
+    bg.strokeRoundedRect(0, 0, 180, 100, 8);
+    this.resourcePanel.add(bg);
+    
+    // Currency
+    const currency = this.meta.save.currency;
+    const currencyText = this.add.text(15, 15, `🪙 ${currency} Doubloons`, {
+      fontSize: '14px',
+      color: '#ffd700'
+    });
+    this.resourcePanel.add(currencyText);
+    
+    // Days remaining
+    const daysRemaining = this.session.getCurse().getDaysRemaining();
+    this.dayCounter = this.add.text(15, 40, `📅 ${daysRemaining} days until Blood Moon`, {
+      fontSize: '12px',
+      color: daysRemaining <= 7 ? '#ff4444' : '#aaaaaa'
+    });
+    this.resourcePanel.add(this.dayCounter);
+    
+    // Statue pieces
+    const pieces = this.session.getStatuePieces().length;
+    const piecesText = this.add.text(15, 60, `⭐ ${pieces}/7 Statue Pieces`, {
+      fontSize: '12px',
+      color: '#c9a227'
+    });
+    this.resourcePanel.add(piecesText);
+    
+    // Insight
+    const insight = this.session.getInsight().current;
+    const insightText = this.add.text(15, 80, `👁 ${insight} Insight`, {
+      fontSize: '12px',
+      color: '#9090ff'
+    });
+    this.resourcePanel.add(insightText);
+    
+    // Update curse indicator too
+    this.refreshCurseIndicator();
+  }
+  
+  private refreshCurseIndicator(): void {
+    this.curseIndicator.removeAll(true);
+    
+    const stage = this.session.getCurse().getStage();
+    
+    const bg = this.add.graphics();
+    bg.fillStyle(0x200000, 0.8);
+    bg.fillRoundedRect(0, 0, 180, 30, 4);
+    this.curseIndicator.add(bg);
+    
+    const curseText = this.add.text(90, 15, `☠ Curse Stage: ${stage}/5`, {
+      fontSize: '12px',
+      color: stage >= 4 ? '#ff4444' : '#cc8800'
+    }).setOrigin(0.5);
+    this.curseIndicator.add(curseText);
+  }
+  
+  // ==========================================
+  // TRADING SYSTEM
+  // ==========================================
+  
+  private openTradeMenu(loc: MapLocation, overlay: Phaser.GameObjects.Rectangle, parentPanel: Phaser.GameObjects.Container): void {
+    parentPanel.setVisible(false);
+    
+    const tradePanel = this.add.container(400, 300);
+    (overlay as any).tradePanelRef = tradePanel;
     
     const bg = this.add.graphics();
     bg.fillStyle(0x1a1520, 1);
-    bg.fillRoundedRect(-200, -150, 400, 300, 12);
-    bg.lineStyle(3, this.getLocationColor(loc.type));
-    bg.strokeRoundedRect(-200, -150, 400, 300, 12);
+    bg.fillRoundedRect(-250, -200, 500, 400, 12);
+    bg.lineStyle(3, 0x4a90d9);
+    bg.strokeRoundedRect(-250, -200, 500, 400, 12);
+    tradePanel.add(bg);
+    
+    const title = this.add.text(0, -170, `🛒 Trade at ${loc.name}`, {
+      fontSize: '20px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+    tradePanel.add(title);
+    
+    const currency = this.meta.save.currency;
+    const currencyText = this.add.text(0, -140, `Your Doubloons: ${currency}`, {
+      fontSize: '14px',
+      color: '#ffd700'
+    }).setOrigin(0.5);
+    tradePanel.add(currencyText);
+    
+    // Trade goods - prices vary by location
+    const priceMultiplier = loc.faction === 'Pirates' ? 0.8 : (loc.faction === 'Gilded Armada' ? 1.3 : 1.0);
+    
+    const goods = [
+      { name: '🗺 Sea Charts', desc: 'Reveals a hidden location', price: 50, effect: 'reveal_location' },
+      { name: '⚗️ Curse Salve', desc: 'Slows curse by 2 days', price: 80, effect: 'slow_curse' },
+      { name: '💊 Healing Herbs', desc: 'Restores health in dungeons', price: 30, effect: 'healing' },
+      { name: '📜 Ancient Fragment', desc: 'Translation progress +1', price: 100, effect: 'translation' },
+      { name: '🔮 Insight Crystal', desc: '+10 Insight', price: 60, effect: 'insight' },
+    ];
+    
+    let y = -90;
+    for (const good of goods) {
+      const adjustedPrice = Math.floor(good.price * priceMultiplier);
+      const canAfford = currency >= adjustedPrice;
+      
+      const itemContainer = this.add.container(-200, y);
+      tradePanel.add(itemContainer);
+      
+      const itemBg = this.add.rectangle(125, 0, 450, 40, canAfford ? 0x2a3a4a : 0x1a1a2a);
+      itemBg.setStrokeStyle(1, 0x3a4a5a);
+      itemContainer.add(itemBg);
+      
+      const nameText = this.add.text(10, -8, good.name, {
+        fontSize: '14px',
+        color: canAfford ? '#ffffff' : '#666666'
+      });
+      itemContainer.add(nameText);
+      
+      const descText = this.add.text(10, 8, good.desc, {
+        fontSize: '10px',
+        color: '#888888'
+      });
+      itemContainer.add(descText);
+      
+      const priceText = this.add.text(380, 0, `${adjustedPrice}🪙`, {
+        fontSize: '14px',
+        color: canAfford ? '#ffd700' : '#664400'
+      }).setOrigin(1, 0.5);
+      itemContainer.add(priceText);
+      
+      if (canAfford) {
+        itemBg.setInteractive({ useHandCursor: true });
+        itemBg.on('pointerover', () => itemBg.setFillStyle(0x3a4a5a));
+        itemBg.on('pointerout', () => itemBg.setFillStyle(0x2a3a4a));
+        itemBg.on('pointerdown', () => {
+          this.purchaseGood(good.effect, adjustedPrice, currencyText);
+        });
+      }
+      
+      y += 50;
+    }
+    
+    // Back button
+    const backBtn = this.add.text(0, 170, '← Back', {
+      fontSize: '16px',
+      color: '#aaaaaa'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    backBtn.on('pointerover', () => backBtn.setColor('#ffffff'));
+    backBtn.on('pointerout', () => backBtn.setColor('#aaaaaa'));
+    backBtn.on('pointerdown', () => {
+      tradePanel.destroy();
+      parentPanel.setVisible(true);
+    });
+    tradePanel.add(backBtn);
+  }
+  
+  private purchaseGood(effect: string, price: number, currencyText: Phaser.GameObjects.Text): void {
+    // Deduct currency
+    this.meta.addCurrency(-price);
+    
+    // Apply effect
+    switch (effect) {
+      case 'reveal_location':
+        this.revealRandomLocation();
+        break;
+      case 'slow_curse':
+        // Add 2 days (negative advance)
+        this.session.getCurse().advanceDay(-2);
+        this.showMessage('The curse\'s grip loosens... (+2 days)');
+        break;
+      case 'healing':
+        // Store for dungeon use
+        this.showMessage('Healing herbs acquired! (Use in dungeons)');
+        break;
+      case 'translation':
+        // Add translation fragment
+        this.meta.addTranslationFragment('ancient_tablet_binding');
+        this.showMessage('Ancient knowledge gained! (Translation +1)');
+        break;
+      case 'insight':
+        this.session.getInsight().gain(10, 'insight_crystal');
+        this.showMessage('+10 Insight!');
+        break;
+    }
+    
+    // Update currency display
+    currencyText.setText(`Your Doubloons: ${this.meta.save.currency}`);
+    this.refreshResourcePanel();
+  }
+  
+  private revealRandomLocation(): void {
+    const hidden = this.locations.filter(l => !l.discovered);
+    if (hidden.length === 0) {
+      this.showMessage('All locations already discovered!');
+      return;
+    }
+    
+    const loc = hidden[Math.floor(Math.random() * hidden.length)];
+    loc.discovered = true;
+    
+    // Create marker for newly discovered location
+    const marker = this.createLocationMarker(loc);
+    this.locationMarkers.set(loc.id, marker);
+    
+    this.showMessage(`Discovered: ${loc.name}!`);
+  }
+  
+  // ==========================================
+  // TAVERN SYSTEM
+  // ==========================================
+  
+  private openTavern(loc: MapLocation, overlay: Phaser.GameObjects.Rectangle, parentPanel: Phaser.GameObjects.Container): void {
+    parentPanel.setVisible(false);
+    
+    const tavernPanel = this.add.container(400, 300);
+    (overlay as any).tavernPanelRef = tavernPanel;
+    
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1510, 1);
+    bg.fillRoundedRect(-250, -200, 500, 400, 12);
+    bg.lineStyle(3, 0x8b6914);
+    bg.strokeRoundedRect(-250, -200, 500, 400, 12);
+    tavernPanel.add(bg);
+    
+    const title = this.add.text(0, -170, `🍺 Tavern at ${loc.name}`, {
+      fontSize: '20px',
+      color: '#c9a227'
+    }).setOrigin(0.5);
+    tavernPanel.add(title);
+    
+    const subtitle = this.add.text(0, -145, 'Rumors flow freely here...', {
+      fontSize: '12px',
+      color: '#888888'
+    }).setOrigin(0.5);
+    tavernPanel.add(subtitle);
+    
+    // Rumors available - cost and reliability vary
+    const rumors = this.generateRumors(loc);
+    
+    let y = -90;
+    for (const rumor of rumors) {
+      const currency = this.meta.save.currency;
+      const canAfford = currency >= rumor.price;
+      
+      const rumorContainer = this.add.container(-200, y);
+      tavernPanel.add(rumorContainer);
+      
+      const rumorBg = this.add.rectangle(125, 0, 450, 55, canAfford ? 0x2a2520 : 0x1a1510);
+      rumorBg.setStrokeStyle(1, 0x4a4030);
+      rumorContainer.add(rumorBg);
+      
+      const sourceText = this.add.text(10, -15, rumor.source, {
+        fontSize: '12px',
+        color: this.getRumorSourceColor(rumor.reliability)
+      });
+      rumorContainer.add(sourceText);
+      
+      const teaser = rumor.teaser.length > 50 ? rumor.teaser.substring(0, 47) + '...' : rumor.teaser;
+      const teaserText = this.add.text(10, 5, `"${teaser}"`, {
+        fontSize: '11px',
+        color: '#aaaaaa',
+        fontStyle: 'italic'
+      });
+      rumorContainer.add(teaserText);
+      
+      const priceText = this.add.text(380, 0, `${rumor.price}🪙`, {
+        fontSize: '14px',
+        color: canAfford ? '#ffd700' : '#664400'
+      }).setOrigin(1, 0.5);
+      rumorContainer.add(priceText);
+      
+      if (canAfford) {
+        rumorBg.setInteractive({ useHandCursor: true });
+        rumorBg.on('pointerover', () => rumorBg.setFillStyle(0x3a3530));
+        rumorBg.on('pointerout', () => rumorBg.setFillStyle(0x2a2520));
+        rumorBg.on('pointerdown', () => {
+          this.purchaseRumor(rumor, tavernPanel);
+        });
+      }
+      
+      y += 65;
+    }
+    
+    // Back button
+    const backBtn = this.add.text(0, 170, '← Back', {
+      fontSize: '16px',
+      color: '#aaaaaa'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    backBtn.on('pointerover', () => backBtn.setColor('#ffffff'));
+    backBtn.on('pointerout', () => backBtn.setColor('#aaaaaa'));
+    backBtn.on('pointerdown', () => {
+      tavernPanel.destroy();
+      parentPanel.setVisible(true);
+    });
+    tavernPanel.add(backBtn);
+  }
+  
+  private generateRumors(loc: MapLocation): Array<{
+    source: string;
+    teaser: string;
+    fullInfo: string;
+    price: number;
+    reliability: 'low' | 'medium' | 'high';
+    effect?: string;
+    insightGain: number;
+  }> {
+    const rumors = [];
+    const insight = this.session.getInsight().current;
+    
+    // Always have some generic rumors
+    rumors.push({
+      source: '🍺 Drunk Sailor',
+      teaser: 'The Armada\'s been moving ships toward the eastern reef...',
+      fullInfo: 'The Gilded Armada has increased patrols near the Drowned Reef. They\'re looking for something specific - probably a statue piece. Be careful if you head that way.',
+      price: 10,
+      reliability: 'medium' as const,
+      insightGain: 2
+    });
+    
+    rumors.push({
+      source: '👤 Hooded Stranger',
+      teaser: 'The monks know more than they say about the curse...',
+      fullInfo: 'The Monastery has records dating back to when the Drowned Sovereign first appeared. They speak of a "third path" - neither serving the depths nor the golden light. But they won\'t share freely.',
+      price: 25,
+      reliability: 'high' as const,
+      insightGain: 5,
+      effect: 'reveal_monastery'
+    });
+    
+    if (loc.faction === 'Pirates') {
+      rumors.push({
+        source: '🏴‍☠️ Grizzled Pirate',
+        teaser: 'I know where a piece of that statue is hidden...',
+        fullInfo: 'The Serpent Caves hold a statue fragment. But beware - the caves are deeper than they appear, and something guards the piece. Something that used to be human.',
+        price: 40,
+        reliability: 'high' as const,
+        insightGain: 8
+      });
+    }
+    
+    // High insight reveals more detailed rumors
+    if (insight >= 30) {
+      rumors.push({
+        source: '😰 Nervous Merchant',
+        teaser: 'The Armada officers... their eyes aren\'t right...',
+        fullInfo: 'I\'ve traded with the Armada for years. But lately... the officers move wrong. Speak wrong. They smile too much and their eyes catch light that isn\'t there. I think something\'s taken them.',
+        price: 30,
+        reliability: 'high' as const,
+        insightGain: 10
+      });
+    }
+    
+    // Unreliable rumors (may be false or traps)
+    rumors.push({
+      source: '🎭 Smooth Talker',
+      teaser: 'Assemble the statue quickly - it\'s the only way to break your curse...',
+      fullInfo: 'The statue pieces must be assembled at the underwater temple. Once complete, the Drowned Sovereign will grant you freedom from the curse. Trust me.',
+      price: 5,
+      reliability: 'low' as const,
+      insightGain: 1
+    });
+    
+    return rumors.slice(0, 4); // Max 4 rumors
+  }
+  
+  private getRumorSourceColor(reliability: 'low' | 'medium' | 'high'): string {
+    switch (reliability) {
+      case 'high': return '#44aa44';
+      case 'medium': return '#aaaa44';
+      case 'low': return '#aa4444';
+    }
+  }
+  
+  private purchaseRumor(rumor: any, panel: Phaser.GameObjects.Container): void {
+    // Deduct cost
+    this.meta.addCurrency(-rumor.price);
+    
+    // Gain insight
+    this.session.getInsight().gain(rumor.insightGain, 'tavern_rumor');
+    
+    // Show full rumor
+    panel.removeAll(true);
+    
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1510, 1);
+    bg.fillRoundedRect(-250, -200, 500, 400, 12);
+    bg.lineStyle(3, 0x8b6914);
+    bg.strokeRoundedRect(-250, -200, 500, 400, 12);
     panel.add(bg);
     
-    const title = this.add.text(0, -120, `Welcome to ${loc.name}`, {
+    const title = this.add.text(0, -170, rumor.source, {
+      fontSize: '18px',
+      color: this.getRumorSourceColor(rumor.reliability)
+    }).setOrigin(0.5);
+    panel.add(title);
+    
+    const reliabilityText = this.add.text(0, -145, `Reliability: ${rumor.reliability.toUpperCase()}`, {
+      fontSize: '12px',
+      color: this.getRumorSourceColor(rumor.reliability)
+    }).setOrigin(0.5);
+    panel.add(reliabilityText);
+    
+    const infoText = this.add.text(0, -50, rumor.fullInfo, {
+      fontSize: '14px',
+      color: '#cccccc',
+      wordWrap: { width: 440 },
+      align: 'center'
+    }).setOrigin(0.5, 0);
+    panel.add(infoText);
+    
+    const insightText = this.add.text(0, 100, `+${rumor.insightGain} Insight`, {
+      fontSize: '14px',
+      color: '#9090ff'
+    }).setOrigin(0.5);
+    panel.add(insightText);
+    
+    // Apply special effects
+    if (rumor.effect === 'reveal_monastery') {
+      const monastery = this.locations.find(l => l.id === 'monastery_isle');
+      if (monastery && !monastery.discovered) {
+        monastery.discovered = true;
+        const marker = this.createLocationMarker(monastery);
+        this.locationMarkers.set(monastery.id, marker);
+        
+        const revealText = this.add.text(0, 130, '📍 Monastery Isle revealed on map!', {
+          fontSize: '12px',
+          color: '#44ff44'
+        }).setOrigin(0.5);
+        panel.add(revealText);
+      }
+    }
+    
+    // Close button
+    const closeBtn = this.add.text(0, 170, 'Continue', {
+      fontSize: '16px',
+      color: '#c9a227'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    
+    closeBtn.on('pointerover', () => closeBtn.setColor('#ffffff'));
+    closeBtn.on('pointerout', () => closeBtn.setColor('#c9a227'));
+    closeBtn.on('pointerdown', () => {
+      panel.destroy();
+      this.refreshResourcePanel();
+    });
+    panel.add(closeBtn);
+  }
+  
+  private showMessage(text: string): void {
+    const msg = this.add.text(400, 500, text, {
+      fontSize: '16px',
+      color: '#ffffff',
+      backgroundColor: '#000000',
+      padding: { x: 10, y: 5 }
+    }).setOrigin(0.5).setDepth(1000);
+    
+    this.tweens.add({
+      targets: msg,
+      alpha: 0,
+      y: msg.y - 50,
+      delay: 2000,
+      duration: 500,
+      onComplete: () => msg.destroy()
+    });
+  }
+  
+  // Update the port menu to use the new systems
+  private showPortMenuUpdated(loc: MapLocation): void {
+    const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.8);
+    overlay.setDepth(500);
+    
+    const panel = this.add.container(400, 300);
+    panel.setDepth(501);
+    
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a1520, 1);
+    bg.fillRoundedRect(-200, -180, 400, 360, 12);
+    bg.lineStyle(3, this.getLocationColor(loc.type));
+    bg.strokeRoundedRect(-200, -180, 400, 360, 12);
+    panel.add(bg);
+    
+    const title = this.add.text(0, -150, `Welcome to ${loc.name}`, {
       fontSize: '20px',
       color: '#ffffff'
     }).setOrigin(0.5);
     panel.add(title);
     
-    const desc = this.add.text(0, -60, loc.description, {
-      fontSize: '14px',
+    const desc = this.add.text(0, -110, loc.description, {
+      fontSize: '12px',
       color: '#aaaaaa',
       wordWrap: { width: 350 },
       align: 'center'
@@ -722,43 +1240,51 @@ export class WorldMapScene extends Phaser.Scene {
     
     // Port options
     const options = [
-      { text: '🛒 Trade Goods', action: () => console.log('Trade') },
-      { text: '🍺 Visit Tavern', action: () => console.log('Tavern') },
-      { text: '💤 Rest (Heal)', action: () => this.restAtPort(loc) },
-      { text: '🚪 Leave', action: () => this.closePortMenu(overlay, panel) }
+      { text: '🛒 Trade Goods', action: () => this.openTradeMenu(loc, overlay, panel) },
+      { text: '🍺 Visit Tavern', action: () => this.openTavern(loc, overlay, panel) },
+      { text: '💤 Rest (+1 Day)', action: () => { this.restAtPort(loc); } },
+      { text: '🚪 Leave', action: () => this.closePortMenuUpdated(overlay, panel) }
     ];
     
-    let y = 0;
+    let y = -30;
     for (const opt of options) {
-      const btn = this.add.text(0, y, opt.text, {
+      const btnBg = this.add.rectangle(0, y, 200, 35, 0x2a2a3a);
+      btnBg.setStrokeStyle(1, 0x4a4a5a);
+      btnBg.setInteractive({ useHandCursor: true });
+      panel.add(btnBg);
+      
+      const btnText = this.add.text(0, y, opt.text, {
         fontSize: '16px',
         color: '#c9a227'
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      }).setOrigin(0.5);
+      panel.add(btnText);
       
-      btn.on('pointerover', () => btn.setColor('#ffffff'));
-      btn.on('pointerout', () => btn.setColor('#c9a227'));
-      btn.on('pointerdown', opt.action);
+      btnBg.on('pointerover', () => {
+        btnBg.setFillStyle(0x3a3a4a);
+        btnText.setColor('#ffffff');
+      });
+      btnBg.on('pointerout', () => {
+        btnBg.setFillStyle(0x2a2a3a);
+        btnText.setColor('#c9a227');
+      });
+      btnBg.on('pointerdown', opt.action);
       
-      panel.add(btn);
-      y += 35;
+      y += 50;
     }
     
-    // Store references for cleanup
+    // Store references
     (overlay as any).panelRef = panel;
   }
   
-  private restAtPort(loc: MapLocation): void {
-    // Heal player, advance 1 day
-    this.session.advanceDay(1);
-    // TODO: Actually heal when we have player health tracking in session
+  private closePortMenuUpdated(overlay: Phaser.GameObjects.Rectangle, panel: Phaser.GameObjects.Container): void {
+    // Clean up any sub-panels
+    if ((overlay as any).tradePanelRef) {
+      (overlay as any).tradePanelRef.destroy();
+    }
+    if ((overlay as any).tavernPanelRef) {
+      (overlay as any).tavernPanelRef.destroy();
+    }
     
-    this.add.text(400, 400, 'You rest and recover...', {
-      fontSize: '14px',
-      color: '#44ff44'
-    }).setOrigin(0.5);
-  }
-  
-  private closePortMenu(overlay: Phaser.GameObjects.Rectangle, panel: Phaser.GameObjects.Container): void {
     overlay.destroy();
     panel.destroy();
     

@@ -190,16 +190,9 @@ export class GameScene extends Phaser.Scene {
     this.meta = MetaProgressionManager.getInstance();
     this.meta.markRunStarted();
     
-    // Initialize session state (per-run)
+    // Initialize session state (per-run) - don't start new run, use existing
     this.session = SessionStateManager.getInstance();
-    // Map old CharacterClass to PirateClass for now
-    const classMapping: Record<CharacterClass, PirateClass> = {
-      [CharacterClass.WARRIOR]: PirateClass.DUELIST,
-      [CharacterClass.ROGUE]: PirateClass.NAVIGATOR,
-      [CharacterClass.GUARDIAN]: PirateClass.QUARTERMASTER
-    };
-    const pirateClass = classMapping[this.meta.getSelectedClass()] || PirateClass.DUELIST;
-    this.session.startNewRun(pirateClass);
+    // Session should already be started from HubScene/WorldMapScene
 
     // Generate dungeon with metadata extraction
     const dungeonGen = new DungeonGenerator();

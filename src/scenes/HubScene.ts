@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { CharacterClass, ItemType, MetaUpgradeId, PirateClass } from '../types';
 import { MetaProgressionManager } from '../systems/MetaProgressionManager';
+import { SessionStateManager } from '../systems/SessionStateManager';
 import { PIRATE_CLASSES } from '../systems/PirateClassSystem';
 
 /**
@@ -486,6 +487,16 @@ export class HubScene extends Phaser.Scene {
     });
 
     button.on('pointerdown', () => {
+      // Start a new session/run with selected class
+      const session = SessionStateManager.getInstance();
+      const classMapping: Record<CharacterClass, PirateClass> = {
+        [CharacterClass.WARRIOR]: PirateClass.DUELIST,
+        [CharacterClass.ROGUE]: PirateClass.NAVIGATOR,
+        [CharacterClass.GUARDIAN]: PirateClass.QUARTERMASTER
+      };
+      const pirateClass = classMapping[this.meta.getSelectedClass()] || PirateClass.DUELIST;
+      session.startNewRun(pirateClass, 30); // 30 days until blood moon
+      
       this.scene.start('WorldMapScene');
     });
   }
